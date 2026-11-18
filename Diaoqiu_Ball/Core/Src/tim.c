@@ -55,7 +55,7 @@ void HAL_TIM_Base_MspInit(TIM_HandleTypeDef *tim_baseHandle)
   {
     __HAL_RCC_TIM3_CLK_ENABLE();
 
-    /* PA6/TIM3_CH1 有 DMA1_Channel6 请求；USART2 仍用中断接收，不占此 DMA 通道。 */
+    /* PA6/TIM3_CH1 有 DMA1_Channel6 请求；USART1 仍用中断接收，不占此 DMA 通道。 */
     hdma_tim3_ch1_trig.Instance = DMA1_Channel6;
     hdma_tim3_ch1_trig.Init.Direction = DMA_MEMORY_TO_PERIPH;
     hdma_tim3_ch1_trig.Init.PeriphInc = DMA_PINC_DISABLE;

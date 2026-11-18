@@ -13,7 +13,7 @@
 #include "tim.h"
 /* USER CODE END Includes */
 
-extern UART_HandleTypeDef huart2;
+extern UART_HandleTypeDef huart1;
 
 void NMI_Handler(void)
 {
@@ -74,8 +74,8 @@ void DMA1_Channel6_IRQHandler(void)
   HAL_DMA_IRQHandler(&hdma_tim3_ch1_trig);
 }
 
-void USART2_IRQHandler(void)
+void USART1_IRQHandler(void)
 {
-  /* 中文注释：USART2负责接收主板下发的球盘协议。 */
-  HAL_UART_IRQHandler(&huart2);
+  /* 中文注释：USART1负责接收主板下发的球盘协议。 */
+  HAL_UART_IRQHandler(&huart1);
 }

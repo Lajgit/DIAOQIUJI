@@ -48,7 +48,7 @@ void MX_USART1_UART_Init(void)
 /* USART2 init function */
 void MX_USART2_UART_Init(void)
 {
-  /* 中文注释：主板PD5/PD6按原理图连接球盘，使用USART2 115200 8N1。 */
+  /* 中文注释：PD5/PD6按网表预留语音；115200是旧参数，语音协议未确认前main不启用。 */
   huart2.Instance = USART2;
   huart2.Init.BaudRate = 115200;
   huart2.Init.WordLength = UART_WORDLENGTH_8B;
@@ -66,7 +66,7 @@ void MX_USART2_UART_Init(void)
 /* USART3 init function */
 void MX_USART3_UART_Init(void)
 {
-  /* 中文注释：主板PB10/PB11按原理图连接控台，使用USART3 115200 8N1。 */
+  /* 中文注释：上球盘PB10/PB11连接通用控台，使用USART3 115200 8N1。 */
   huart3.Instance = USART3;
   huart3.Init.BaudRate = 115200;
   huart3.Init.WordLength = UART_WORDLENGTH_8B;
@@ -94,14 +94,14 @@ void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)
     PA9     ------> USART1_TX
     PA10    ------> USART1_RX
     */
-    GPIO_InitStruct.Pin = GPIO_PIN_9;
+    GPIO_InitStruct.Pin = USART1_TX_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
     GPIO_InitStruct.Alternate = GPIO_AF7_USART1;
     HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-    GPIO_InitStruct.Pin = GPIO_PIN_10;
+    GPIO_InitStruct.Pin = USART1_RX_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Pull = GPIO_PULLUP;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
@@ -120,7 +120,7 @@ void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)
     PD5     ------> USART2_TX
     PD6     ------> USART2_RX
     */
-    GPIO_InitStruct.Pin = GPIO_PIN_5 | GPIO_PIN_6;
+    GPIO_InitStruct.Pin = USART2_TX_Pin | USART2_RX_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
@@ -139,7 +139,7 @@ void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)
     PB10    ------> USART3_TX
     PB11    ------> USART3_RX
     */
-    GPIO_InitStruct.Pin = GPIO_PIN_10 | GPIO_PIN_11;
+    GPIO_InitStruct.Pin = USART3_TX_Pin | USART3_RX_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
@@ -156,19 +156,19 @@ void HAL_UART_MspDeInit(UART_HandleTypeDef* uartHandle)
   if(uartHandle->Instance==USART1)
   {
     __HAL_RCC_USART1_CLK_DISABLE();
-    HAL_GPIO_DeInit(GPIOA, GPIO_PIN_9 | GPIO_PIN_10);
+    HAL_GPIO_DeInit(GPIOA, USART1_TX_Pin | USART1_RX_Pin);
     HAL_NVIC_DisableIRQ(USART1_IRQn);
   }
   else if(uartHandle->Instance==USART2)
   {
     __HAL_RCC_USART2_CLK_DISABLE();
-    HAL_GPIO_DeInit(GPIOD, GPIO_PIN_5 | GPIO_PIN_6);
+    HAL_GPIO_DeInit(GPIOD, USART2_TX_Pin | USART2_RX_Pin);
     HAL_NVIC_DisableIRQ(USART2_IRQn);
   }
   else if(uartHandle->Instance==USART3)
   {
     __HAL_RCC_USART3_CLK_DISABLE();
-    HAL_GPIO_DeInit(GPIOB, GPIO_PIN_10 | GPIO_PIN_11);
+    HAL_GPIO_DeInit(GPIOB, USART3_TX_Pin | USART3_RX_Pin);
     HAL_NVIC_DisableIRQ(USART3_IRQn);
   }
 }

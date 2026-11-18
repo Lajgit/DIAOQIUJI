@@ -34,7 +34,7 @@ static void SystemLight_Task(void)
 void Main_Init(void)
 {
     FlashTask_Init();
-    /* 中文注释：CommInit同时初始化USART1安卓、USART2球盘、USART3控台三条协议链路。 */
+    /* 中文注释：CommInit初始化USART1下球盘与USART3通用控台两条14字节协议链路。 */
     CommInit();
     Device_Init();
     HoolleInput_FilterInit();

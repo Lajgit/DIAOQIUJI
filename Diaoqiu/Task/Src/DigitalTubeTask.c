@@ -20,8 +20,7 @@ void DigitalTubeTask_Init(void)
     DigitalTube.Set_Num(&DigitalTube, 0, 0, 4);
     DigitalTube.Refresh(&DigitalTube);
 
-    /* 中文注释：首帧数据完成锁存后再拉低SEG_OE，使能数码管输出。 */
-    HAL_GPIO_WritePin(Tube_OE_GPIO_Port, Tube_OE_Pin, GPIO_PIN_RESET);
+    /* 中文注释：最新网表驱动使能脚直接接地，删除原PB14使能操作。 */
 }
 
 void DigitalTube_Task(void)

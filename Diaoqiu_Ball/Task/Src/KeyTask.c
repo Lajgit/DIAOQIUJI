@@ -6,9 +6,9 @@
 #define BALL_EYE_SCAN_MS 3U
 
 /*
- * 中文注释：沿用旧模板KeyTask文件名以避免修改工程结构。
- * 实际任务改为扫描球盘7路光眼：PB3~PB7五路 + PA4/PA5的FB1/FB2两路。
- * 协议表当前写编号1~6，但硬件实际保留7路：1~5为本板光眼，6~7为两块外接数码管模块反馈。
+ * 中文注释：本次仅迁移旧协议7项的物理引脚，前5项对应U1/U3/U4/U5/U6，
+ * 后2项对应CN1/CN2。其余4路已配置为输入，待确认协议编号后再加入上报，
+ * 不能把硬件器件顺序直接当作新协议编号。
  */
 static GPIO_TypeDef *BallEye_Port[BALL_EYE_COUNT] = {
     BallEye1_GPIO_Port,
@@ -16,8 +16,8 @@ static GPIO_TypeDef *BallEye_Port[BALL_EYE_COUNT] = {
     BallEye3_GPIO_Port,
     BallEye4_GPIO_Port,
     BallEye5_GPIO_Port,
-    BallEyeFB1_GPIO_Port,
-    BallEyeFB2_GPIO_Port,
+    BallEyeExternal1_GPIO_Port,
+    BallEyeExternal2_GPIO_Port,
 };
 
 static uint16_t BallEye_Pin[BALL_EYE_COUNT] = {
@@ -26,8 +26,8 @@ static uint16_t BallEye_Pin[BALL_EYE_COUNT] = {
     BallEye3_Pin,
     BallEye4_Pin,
     BallEye5_Pin,
-    BallEyeFB1_Pin,
-    BallEyeFB2_Pin,
+    BallEyeExternal1_Pin,
+    BallEyeExternal2_Pin,
 };
 
 static GPIO_PinState BallEye_LastState[BALL_EYE_COUNT];

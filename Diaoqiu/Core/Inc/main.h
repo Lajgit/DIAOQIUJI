@@ -57,34 +57,59 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+/* 中文注释：按Diaoqiu.tel映射进珠、出珠、两路卡片反馈、投币与转盘输入。 */
 #define HoolleInput_Pin GPIO_PIN_2
 #define HoolleInput_GPIO_Port GPIOE
-#define HoolleInput_EXTI_IRQn EXTI2_IRQn
 #define HoolleOutput_1_Pin GPIO_PIN_3
 #define HoolleOutput_1_GPIO_Port GPIOE
-#define HoolleOutput_1_EXTI_IRQn EXTI3_IRQn
 #define HoolleOutput_2_Pin GPIO_PIN_4
 #define HoolleOutput_2_GPIO_Port GPIOE
-#define HoolleOutput_2_EXTI_IRQn EXTI4_IRQn
 #define CardFeedback_Pin GPIO_PIN_5
 #define CardFeedback_GPIO_Port GPIOE
-#define CardFeedback_EXTI_IRQn EXTI9_5_IRQn
 #define CoinInput_Pin GPIO_PIN_6
 #define CoinInput_GPIO_Port GPIOE
-#define CoinInput_EXTI_IRQn EXTI9_5_IRQn
+#define CardFeedback2_Pin GPIO_PIN_10
+#define CardFeedback2_GPIO_Port GPIOE
+#define AngleInput_Pin GPIO_PIN_14
+#define AngleInput_GPIO_Port GPIOD
+#define ResetInput_Pin GPIO_PIN_15
+#define ResetInput_GPIO_Port GPIOD
+
+/* 中文注释：锁、两路卡片机及两组12V负载控制；ResetInput不是芯片NRST。 */
+#define LockOutput_Pin GPIO_PIN_0
+#define LockOutput_GPIO_Port GPIOA
+#define CardOutput_Pin GPIO_PIN_4
+#define CardOutput_GPIO_Port GPIOC
+#define CardOutput2_Pin GPIO_PIN_5
+#define CardOutput2_GPIO_Port GPIOC
+#define LED1_Pin GPIO_PIN_3
+#define LED1_GPIO_Port GPIOB
+#define LED2_Pin GPIO_PIN_4
+#define LED2_GPIO_Port GPIOB
+
+/* 中文注释：三路电机按驱动器输入脚编号，不在引脚表中定义正反转。 */
+#define Motor1_IN1_Pin GPIO_PIN_9
+#define Motor1_IN1_GPIO_Port GPIOE
+#define Motor1_IN2_Pin GPIO_PIN_11
+#define Motor1_IN2_GPIO_Port GPIOE
+#define Motor2_IN1_Pin GPIO_PIN_14
+#define Motor2_IN1_GPIO_Port GPIOE
+#define Motor2_IN2_Pin GPIO_PIN_13
+#define Motor2_IN2_GPIO_Port GPIOE
+#define Motor3_IN1_Pin GPIO_PIN_13
+#define Motor3_IN1_GPIO_Port GPIOD
+#define Motor3_IN2_Pin GPIO_PIN_12
+#define Motor3_IN2_GPIO_Port GPIOD
+
+/* 中文注释：两路RGB数据为PC6/PC7；PC13仅为本板状态灯。 */
+#define RGB1_Pin GPIO_PIN_6
+#define RGB1_GPIO_Port GPIOC
+#define RGB2_Pin GPIO_PIN_7
+#define RGB2_GPIO_Port GPIOC
 #define LED_Pin GPIO_PIN_13
 #define LED_GPIO_Port GPIOC
-#define SettingButton_Pin GPIO_PIN_0
-#define SettingButton_GPIO_Port GPIOC
-#define SettingButton_EXTI_IRQn EXTI0_IRQn
-#define Button1_Pin GPIO_PIN_1
-#define Button1_GPIO_Port GPIOC
-#define KeyLED_1_Pin GPIO_PIN_2
-#define KeyLED_1_GPIO_Port GPIOC
-#define KeyLED_2_Pin GPIO_PIN_3
-#define KeyLED_2_GPIO_Port GPIOC
-#define Servo_1_Pin GPIO_PIN_2
-#define Servo_1_GPIO_Port GPIOA
+
+/* 中文注释：TF卡使用SPI1引脚；LCD三线接口经U6连接，具体时序另行实现。 */
 #define SD_CS_Pin GPIO_PIN_4
 #define SD_CS_GPIO_Port GPIOA
 #define SD_CLK_Pin GPIO_PIN_5
@@ -93,73 +118,42 @@ void Error_Handler(void);
 #define SD_MISO_GPIO_Port GPIOA
 #define SD_MOSI_Pin GPIO_PIN_7
 #define SD_MOSI_GPIO_Port GPIOA
-#define CardOutput_Pin GPIO_PIN_4
-#define CardOutput_GPIO_Port GPIOC
+#define LCD_CS_Pin GPIO_PIN_15
+#define LCD_CS_GPIO_Port GPIOA
+#define LCD_SCK_Pin GPIO_PIN_10
+#define LCD_SCK_GPIO_Port GPIOC
+#define LCD_MOSI_Pin GPIO_PIN_12
+#define LCD_MOSI_GPIO_Port GPIOC
 
-/* 中文注释：J6数码管接口，PB13/PB15复用SPI2，PB12/PB14作为普通GPIO。 */
+/* 中文注释：数码管PB12/PB13/PB15经U11；驱动使能已接地，没有PB14使能线。 */
 #define Tube_RCLK_Pin GPIO_PIN_12
 #define Tube_RCLK_GPIO_Port GPIOB
 #define Tube_SRCLK_Pin GPIO_PIN_13
 #define Tube_SRCLK_GPIO_Port GPIOB
-#define Tube_OE_Pin GPIO_PIN_14
-#define Tube_OE_GPIO_Port GPIOB
 #define Tube_SER_Pin GPIO_PIN_15
 #define Tube_SER_GPIO_Port GPIOB
 
-/* 中文注释：三路外接游玩按键，协议编号依次为1、2、3。 */
-#define PlayButton1_Pin GPIO_PIN_8
-#define PlayButton1_GPIO_Port GPIOD
-#define PlayButton2_Pin GPIO_PIN_9
-#define PlayButton2_GPIO_Port GPIOD
-#define PlayButton3_Pin GPIO_PIN_10
-#define PlayButton3_GPIO_Port GPIOD
-
-#define Hole_B1_Pin GPIO_PIN_11
-#define Hole_B1_GPIO_Port GPIOD
-#define Hole_B2_Pin GPIO_PIN_12
-#define Hole_B2_GPIO_Port GPIOD
-#define Hole_Y1_Pin GPIO_PIN_13
-#define Hole_Y1_GPIO_Port GPIOD
-#define Hole_P1_Pin GPIO_PIN_14
-#define Hole_P1_GPIO_Port GPIOD
-#define Hole_P2_Pin GPIO_PIN_15
-#define Hole_P2_GPIO_Port GPIOD
-#define Hole_Y2_Pin GPIO_PIN_6
-#define Hole_Y2_GPIO_Port GPIOC
-#define Hole_B3_Pin GPIO_PIN_7
-#define Hole_B3_GPIO_Port GPIOC
-#define Hole_Y3_Pin GPIO_PIN_8
-#define Hole_Y3_GPIO_Port GPIOC
-#define Hole_B5_Pin GPIO_PIN_9
-#define Hole_B5_GPIO_Port GPIOC
-#define Hole_P3_Pin GPIO_PIN_8
-#define Hole_P3_GPIO_Port GPIOA
-#define Hole_Y4_Pin GPIO_PIN_11
-#define Hole_Y4_GPIO_Port GPIOA
-#define Hole_B7_Pin GPIO_PIN_12
-#define Hole_B7_GPIO_Port GPIOA
-#define Servo_2_Pin GPIO_PIN_15
-#define Servo_2_GPIO_Port GPIOA
-
-/* 中文注释：后台设置按键。原理图K1=PB6、K2=PB7、K3=PD0；旧宏名暂保留以缩小修改范围。 */
-#define KeyBoard1_Pin GPIO_PIN_0
-#define KeyBoard1_GPIO_Port GPIOD
-#define Q7_Pin GPIO_PIN_3
-#define Q7_GPIO_Port GPIOD
-#define Q8_Pin GPIO_PIN_4
-#define Q8_GPIO_Port GPIOD
-#define Q9_Pin GPIO_PIN_5
-#define Q9_GPIO_Port GPIOD
-#define Q10_Pin GPIO_PIN_6
-#define Q10_GPIO_Port GPIOD
-#define Q11_Pin GPIO_PIN_7
-#define Q11_GPIO_Port GPIOD
-#define Servo_3_Pin GPIO_PIN_3
-#define Servo_3_GPIO_Port GPIOB
+/* 中文注释：沿用已有键名：K1=KeyBoard3、K2=KeyBoard2、K3=KeyBoard1。 */
 #define KeyBoard3_Pin GPIO_PIN_6
 #define KeyBoard3_GPIO_Port GPIOB
 #define KeyBoard2_Pin GPIO_PIN_7
 #define KeyBoard2_GPIO_Port GPIOB
+#define KeyBoard1_Pin GPIO_PIN_0
+#define KeyBoard1_GPIO_Port GPIOD
+
+/* 中文注释：USART1连接下球盘，USART2预留语音，USART3连接通用控台；无安卓板。 */
+#define USART1_TX_Pin GPIO_PIN_9
+#define USART1_TX_GPIO_Port GPIOA
+#define USART1_RX_Pin GPIO_PIN_10
+#define USART1_RX_GPIO_Port GPIOA
+#define USART2_TX_Pin GPIO_PIN_5
+#define USART2_TX_GPIO_Port GPIOD
+#define USART2_RX_Pin GPIO_PIN_6
+#define USART2_RX_GPIO_Port GPIOD
+#define USART3_TX_Pin GPIO_PIN_10
+#define USART3_TX_GPIO_Port GPIOB
+#define USART3_RX_Pin GPIO_PIN_11
+#define USART3_RX_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 

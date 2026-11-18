@@ -56,17 +56,20 @@ void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(CardOutput_GPIO_Port, CardOutput_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOC, CardOutput_Pin | CardOutput2_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, LED1_Pin | LED2_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOD, Motor3_IN1_Pin | Motor3_IN2_Pin, GPIO_PIN_RESET);
+  /* 中文注释：尚未启用RGB驱动，先将两路数据保持低电平。 */
+  HAL_GPIO_WritePin(GPIOC, RGB1_Pin | RGB2_Pin, GPIO_PIN_RESET);
 
-  /* 中文注释：新扭蛋机原理图中电子锁控制为 PA0，默认输出低电平保持关闭。 */
-  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_RESET);
+  /* 中文注释：最新上球盘网表中电子锁控制为 PA0，默认输出低电平保持关闭。 */
+  HAL_GPIO_WritePin(LockOutput_GPIO_Port, LockOutput_Pin, GPIO_PIN_RESET);
 
-  /* 中文注释：RCLK1经过74HC14反相，MCU侧默认拉高可使SM16306的LE保持低电平锁存；SEG_OE先拉高关闭输出。 */
+  /* 中文注释：RCLK1经过74HC14反相，MCU侧默认拉高可使SM16306的LE保持低电平锁存；使能脚由硬件接地。 */
   HAL_GPIO_WritePin(Tube_RCLK_GPIO_Port, Tube_RCLK_Pin, GPIO_PIN_SET);
-  HAL_GPIO_WritePin(Tube_OE_GPIO_Port, Tube_OE_Pin, GPIO_PIN_SET);
 
   /* 进珠光眼由SysTick软件滤波扫描，不再配置无效的EXTI2。 */
-  GPIO_InitStruct.Pin = HoolleInput_Pin;
+  GPIO_InitStruct.Pin = HoolleInput_Pin | CardFeedback2_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(HoolleInput_GPIO_Port, &GPIO_InitStruct);
@@ -83,6 +86,12 @@ void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
+  /* 中文注释：转盘ANGLE/RESET为普通输入，边沿语义待业务确定。 */
+  GPIO_InitStruct.Pin = AngleInput_Pin | ResetInput_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
+
   /* 系统指示灯 */
   GPIO_InitStruct.Pin = LED_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
@@ -91,21 +100,21 @@ void MX_GPIO_Init(void)
   HAL_GPIO_Init(LED_GPIO_Port, &GPIO_InitStruct);
 
   /* 卡片机控制输出 */
-  GPIO_InitStruct.Pin = CardOutput_Pin;
+  GPIO_InitStruct.Pin = CardOutput_Pin | CardOutput2_Pin | RGB1_Pin | RGB2_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(CardOutput_GPIO_Port, &GPIO_InitStruct);
 
   /* 中文注释：电子锁MOS控制脚，原弹界TIM5灯效占用已取消。 */
-  GPIO_InitStruct.Pin = GPIO_PIN_0;
+  GPIO_InitStruct.Pin = LockOutput_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+  HAL_GPIO_Init(LockOutput_GPIO_Port, &GPIO_InitStruct);
 
-  /* 中文注释：PB12为数码管锁存时钟RCLK，PB14为段输出使能SEG_OE。 */
-  GPIO_InitStruct.Pin = Tube_RCLK_Pin | Tube_OE_Pin;
+  /* 中文注释：PB12为锁存时钟，PB3/PB4为两组负载；删除无连接的PB14使能。 */
+  GPIO_InitStruct.Pin = Tube_RCLK_Pin | LED1_Pin | LED2_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
@@ -117,8 +126,15 @@ void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /* 中文注释：后台设置按键K3使用PD0；游玩按键1~3使用PD8/PD9/PD10，均由板上电阻上拉。 */
-  GPIO_InitStruct.Pin = KeyBoard1_Pin | PlayButton1_Pin | PlayButton2_Pin | PlayButton3_Pin;
+  /* 中文注释：第三路电机先保持双输入低电平；本次不定义驱动真值表。 */
+  GPIO_InitStruct.Pin = Motor3_IN1_Pin | Motor3_IN2_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
+
+  /* 中文注释：K3仅使用PD0，删除没有网表接线的PD8/PD9/PD10游玩按键。 */
+  GPIO_InitStruct.Pin = KeyBoard1_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);

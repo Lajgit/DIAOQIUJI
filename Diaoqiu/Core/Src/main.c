@@ -79,8 +79,7 @@ int main(void)
   MX_TIM1_Init();
   MX_TIM2_Init();
   MX_USART1_UART_Init();
-  /* 中文注释：USART2连接球盘，USART3连接控台，三路通信均需要在任务初始化前就绪。 */
-  MX_USART2_UART_Init();
+  /* 中文注释：USART1连接下球盘、USART3连接通用控台；语音USART2待协议确认后启用。 */
   MX_USART3_UART_Init();
   MX_TIM7_Init();
   MX_IWDG_Init();

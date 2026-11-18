@@ -723,11 +723,6 @@
               <FilePath>..\Task\Src\CommTask.c</FilePath>
             </File>
             <File>
-              <FileName>DigitalTubeTask.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Task\Src\DigitalTubeTask.c</FilePath>
-            </File>
-            <File>
               <FileName>FlashTask.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\Task\Src\FlashTask.c</FilePath>

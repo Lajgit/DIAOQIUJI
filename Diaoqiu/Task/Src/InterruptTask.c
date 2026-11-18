@@ -17,7 +17,6 @@ extern Event_Handle_t Event;
 extern Motor_Hoolle Motor_Hoolle1, Motor_Hoolle2;
 extern Motor_Card Card;
 extern Rx_HandleTypeDef Rx1;
-extern Rx_HandleTypeDef Rx2;
 extern Rx_HandleTypeDef Rx3;
 
 static uint32_t CoinInputLastTick = 0;
@@ -209,14 +208,12 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 
     if (huart == Rx1.Handle.huart)
         Rx = &Rx1;
-    else if (huart == Rx2.Handle.huart)
-        Rx = &Rx2;
     else if (huart == Rx3.Handle.huart)
         Rx = &Rx3;
 
     if (Rx != NULL)
     {
-        /* 中文注释：三路串口统一按单字节中断写入各自环形缓冲区。 */
+        /* 中文注释：USART1/USART3按单字节中断写入各自环形缓冲区，语音口不绑定旧球盘协议。 */
         Rx->Handle.RingBuf.f_WriteByte(&Rx->Handle.RingBuf, Rx->Handle.temp_data);
         HAL_UART_Receive_IT(huart, &Rx->Handle.temp_data, 1);
     }

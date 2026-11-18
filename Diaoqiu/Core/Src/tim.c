@@ -549,7 +549,7 @@ void HAL_TIM_MspPostInit(TIM_HandleTypeDef* timHandle)
     PE13     ------> TIM1_CH3
     PE14     ------> TIM1_CH4
     */
-    GPIO_InitStruct.Pin = GPIO_PIN_9|GPIO_PIN_11|GPIO_PIN_13|GPIO_PIN_14;
+    GPIO_InitStruct.Pin = Motor1_IN1_Pin | Motor1_IN2_Pin | Motor2_IN1_Pin | Motor2_IN2_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -562,34 +562,7 @@ void HAL_TIM_MspPostInit(TIM_HandleTypeDef* timHandle)
   }
   else if(timHandle->Instance==TIM2)
   {
-  /* USER CODE BEGIN TIM2_MspPostInit 0 */
-
-  /* USER CODE END TIM2_MspPostInit 0 */
-
-    __HAL_RCC_GPIOA_CLK_ENABLE();
-    __HAL_RCC_GPIOB_CLK_ENABLE();
-    /**TIM2 GPIO Configuration
-    PA2     ------> TIM2_CH3
-    PA15     ------> TIM2_CH1
-    PB3     ------> TIM2_CH2
-    */
-    GPIO_InitStruct.Pin = Servo_1_Pin|Servo_2_Pin;
-    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-    GPIO_InitStruct.Pull = GPIO_NOPULL;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-    GPIO_InitStruct.Alternate = GPIO_AF1_TIM2;
-    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-    GPIO_InitStruct.Pin = Servo_3_Pin;
-    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-    GPIO_InitStruct.Pull = GPIO_NOPULL;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-    GPIO_InitStruct.Alternate = GPIO_AF1_TIM2;
-    HAL_GPIO_Init(Servo_3_GPIO_Port, &GPIO_InitStruct);
-
-  /* USER CODE BEGIN TIM2_MspPostInit 1 */
-
-  /* USER CODE END TIM2_MspPostInit 1 */
+    /* 中文注释：新板没有舵机接线；保留旧软件计时对象，不再占用PA2/PA15/PB3。 */
   }
   else if(timHandle->Instance==TIM3)
   {
@@ -597,86 +570,23 @@ void HAL_TIM_MspPostInit(TIM_HandleTypeDef* timHandle)
 
   /* USER CODE END TIM3_MspPostInit 0 */
 
-    __HAL_RCC_GPIOB_CLK_ENABLE();
+    __HAL_RCC_GPIOC_CLK_ENABLE();
     /**TIM3 GPIO Configuration
-    PB4     ------> TIM3_CH1
-    PB5     ------> TIM3_CH2
+    PC6     ------> TIM3_CH1
+    PC7     ------> TIM3_CH2
     */
-    GPIO_InitStruct.Pin = GPIO_PIN_4|GPIO_PIN_5;
+    GPIO_InitStruct.Pin = RGB1_Pin | RGB2_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
     GPIO_InitStruct.Alternate = GPIO_AF2_TIM3;
-    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+    HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /* USER CODE BEGIN TIM3_MspPostInit 1 */
 
   /* USER CODE END TIM3_MspPostInit 1 */
   }
-  else if(timHandle->Instance==TIM5)
-  {
-  /* USER CODE BEGIN TIM5_MspPostInit 0 */
-
-  /* USER CODE END TIM5_MspPostInit 0 */
-
-    __HAL_RCC_GPIOA_CLK_ENABLE();
-    /**TIM5 GPIO Configuration
-    PA0-WKUP     ------> TIM5_CH1
-    PA1     ------> TIM5_CH2
-    */
-    GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1;
-    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-    GPIO_InitStruct.Pull = GPIO_NOPULL;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-    GPIO_InitStruct.Alternate = GPIO_AF2_TIM5;
-    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-  /* USER CODE BEGIN TIM5_MspPostInit 1 */
-
-  /* USER CODE END TIM5_MspPostInit 1 */
-  }
-  else if(timHandle->Instance==TIM10)
-  {
-  /* USER CODE BEGIN TIM10_MspPostInit 0 */
-
-  /* USER CODE END TIM10_MspPostInit 0 */
-
-    __HAL_RCC_GPIOB_CLK_ENABLE();
-    /**TIM10 GPIO Configuration
-    PB8     ------> TIM10_CH1
-    */
-    GPIO_InitStruct.Pin = GPIO_PIN_8;
-    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-    GPIO_InitStruct.Pull = GPIO_NOPULL;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-    GPIO_InitStruct.Alternate = GPIO_AF3_TIM10;
-    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  /* USER CODE BEGIN TIM10_MspPostInit 1 */
-
-  /* USER CODE END TIM10_MspPostInit 1 */
-  }
-  else if(timHandle->Instance==TIM11)
-  {
-  /* USER CODE BEGIN TIM11_MspPostInit 0 */
-
-  /* USER CODE END TIM11_MspPostInit 0 */
-
-    __HAL_RCC_GPIOB_CLK_ENABLE();
-    /**TIM11 GPIO Configuration
-    PB9     ------> TIM11_CH1
-    */
-    GPIO_InitStruct.Pin = GPIO_PIN_9;
-    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-    GPIO_InitStruct.Pull = GPIO_NOPULL;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-    GPIO_InitStruct.Alternate = GPIO_AF3_TIM11;
-    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  /* USER CODE BEGIN TIM11_MspPostInit 1 */
-
-  /* USER CODE END TIM11_MspPostInit 1 */
-  }
+  /* 中文注释：旧TIM5/TIM10/TIM11灯光脚不属于本板灯光接口，不再配置其GPIO。 */
 
 }
 

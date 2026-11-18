@@ -1,5 +1,4 @@
 #include "CommTask.h"
-#include "DigitalTubeTask.h"
 #include "LightTask.h"
 #include "app_crc.h"
 #include "string.h"
@@ -38,8 +37,7 @@ static void USART_Deal(void *Rx_mesg)
         break;
 
     case BALL_CMD_DIGITAL_TUBE:
-        /* 中文注释：协议Data3=左右位置，Data4=0x00~0x08显示值。 */
-        BallDigitalTube_Set(mesg->Data3, mesg->Data4);
+        /* 中文注释：保留旧功能码数值，但最新下板没有数码管接口，不执行GPIO输出。 */
         break;
 
     case BALL_CMD_RGB_MODE:
@@ -93,8 +91,8 @@ void CommInit(void)
     Rx_InitTypeDef Rxinit = {0};
     Tx_InitTypeDef Tx_init = {0};
 
-    /* 中文注释：球盘使用USART2/PA2/PA3与主板通信。 */
-    Rxinit.huart = &huart2;
+    /* 中文注释：球盘使用USART1/PA9/PA10与主板通信。 */
+    Rxinit.huart = &huart1;
     Rxinit.RingBuf = rx_buffer;
     Rxinit.RingBuf_Size = sizeof(rx_buffer);
     Rxinit.Frame_Head = Mesg_Head;
@@ -105,7 +103,7 @@ void CommInit(void)
     Rxinit.Deal = USART_Deal;
     Communicate_Rx_Init(&Rx, Rxinit);
 
-    Tx_init.huart = &huart2;
+    Tx_init.huart = &huart1;
     Tx_init.hdma = NULL;
     Tx_init.TxBuf = NULL;
     Tx_init.TxBuf_Size = 0;

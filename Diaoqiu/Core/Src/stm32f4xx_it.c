@@ -72,16 +72,6 @@ void SysTick_Handler(void)
   HoolleInput_Scan1ms();
 }
 
-void EXTI0_IRQHandler(void)
-{
-  HAL_GPIO_EXTI_IRQHandler(SettingButton_Pin);
-}
-
-void EXTI2_IRQHandler(void)
-{
-  HAL_GPIO_EXTI_IRQHandler(HoolleInput_Pin);
-}
-
 void EXTI3_IRQHandler(void)
 {
   HAL_GPIO_EXTI_IRQHandler(HoolleOutput_1_Pin);
@@ -115,7 +105,7 @@ void USART1_IRQHandler(void)
 
 void USART2_IRQHandler(void)
 {
-  /* 中文注释：USART2接收球盘协议字节。 */
+  /* 中文注释：USART2预留语音模块，当前main未启用，不再绑定球盘协议。 */
   HAL_UART_IRQHandler(&huart2);
 }
 

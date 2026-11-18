@@ -290,7 +290,7 @@ void Device_Init(void)
     Device_Motor_Init(&Motor_Hoolle1.Motor, &htim1, TIM_CHANNEL_1, &htim1, TIM_CHANNEL_2);
     Device_Motor_Init(&Motor_Hoolle2.Motor, &htim1, TIM_CHANNEL_3, &htim1, TIM_CHANNEL_4);
     Device_Switch_Init(&Card.Switch, CardOutput_GPIO_Port, CardOutput_Pin, GPIO_PIN_SET);
-    Device_Switch_Init(&Lock_Valve.Switch, GPIOA, GPIO_PIN_0, GPIO_PIN_SET);
+    Device_Switch_Init(&Lock_Valve.Switch, LockOutput_GPIO_Port, LockOutput_Pin, GPIO_PIN_SET);
     /* 与DANJIE舵机1保持相同的53°~127°限位，上电归中后也执行200ms释放。 */
     Device_Servo_Init(&Servo1, &htim2, TIM_CHANNEL_3, 55, 125, SERVO1_CENTER_ANGLE);
     Servo1PwmRunning = 1U;
