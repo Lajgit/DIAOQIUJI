@@ -48,9 +48,9 @@ void MX_USART1_UART_Init(void)
 /* USART2 init function */
 void MX_USART2_UART_Init(void)
 {
-  /* 中文注释：PD5/PD6按网表预留语音；115200是旧参数，语音协议未确认前main不启用。 */
+  /* 中文注释：用户确认YC686B，按厂家V1.5协议使用9600 8N1；main暂不启用，播放与反馈驱动待接入。 */
   huart2.Instance = USART2;
-  huart2.Init.BaudRate = 115200;
+  huart2.Init.BaudRate = 9600;
   huart2.Init.WordLength = UART_WORDLENGTH_8B;
   huart2.Init.StopBits = UART_STOPBITS_1;
   huart2.Init.Parity = UART_PARITY_NONE;

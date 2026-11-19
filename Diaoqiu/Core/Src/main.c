@@ -82,7 +82,7 @@ int main(void)
   MX_TIM3_Init();
   MX_TIM4_Init();
   MX_USART1_UART_Init();
-  /* 中文注释：USART1连接下球盘、USART3连接通用控台；语音USART2待协议确认后启用。 */
+  /* 中文注释：USART1连接下球盘、USART3连接通用控台；YC686B语音USART2待播放/反馈驱动接入后启用。 */
   MX_USART3_UART_Init();
   MX_TIM7_Init();
   MX_IWDG_Init();
