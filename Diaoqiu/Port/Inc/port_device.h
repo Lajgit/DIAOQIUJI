@@ -33,10 +33,10 @@ typedef struct
     TIM_HandleTypeDef *htim_n;
     uint32_t channel_p;
     uint32_t channel_n;
-    uint32_t runtick;
+    volatile uint32_t runtick;
     uint16_t speed;
     uint8_t direction;
-    Device_State state;
+    volatile Device_State state;
     void (*SetSpeed)(void *self, uint16_t speed, uint8_t direction);
     void (*Stop)(void *self);
     void (*LosePower)(void *self);
@@ -48,8 +48,8 @@ typedef struct
 {
     GPIO_TypeDef *gpio;
     uint16_t pin;
-    uint32_t runtick;
-    Device_State state;
+    volatile uint32_t runtick;
+    volatile Device_State state;
     GPIO_PinState level;
     void (*on)(void *self);
     void (*off)(void *self);

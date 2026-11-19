@@ -23,6 +23,7 @@
 #include "tim.h"
 #include "usart.h"
 #include "gpio.h"
+#include "dma.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -76,8 +77,10 @@ int main(void)
 
   MX_GPIO_Init();
   MX_SPI2_Init();
+  MX_DMA_Init();
   MX_TIM1_Init();
-  MX_TIM2_Init();
+  MX_TIM3_Init();
+  MX_TIM4_Init();
   MX_USART1_UART_Init();
   /* 中文注释：USART1连接下球盘、USART3连接通用控台；语音USART2待协议确认后启用。 */
   MX_USART3_UART_Init();

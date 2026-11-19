@@ -79,3 +79,8 @@ void USART1_IRQHandler(void)
   /* 中文注释：USART1负责接收主板下发的球盘协议。 */
   HAL_UART_IRQHandler(&huart1);
 }
+
+void DMA1_Channel2_IRQHandler(void)
+{
+  HAL_DMA_IRQHandler(&hdma_tim1_ch1);
+}

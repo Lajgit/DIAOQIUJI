@@ -29,12 +29,10 @@ Tx_HandleTypeDef Tx3;
 Rx_HandleTypeDef Rx1;
 Rx_HandleTypeDef Rx3;
 
-extern Event_Handle_t Mesg_event;
 extern Event_Handle_t Event;
 extern Motor_Card Card;
 extern Motor_Hoolle Motor_Hoolle1;
 extern Motor_Hoolle Motor_Hoolle2;
-extern Switch_Valve Lock_Valve;
 extern ListHandle_t ResendList, DealList;
 
 static bool USART_ReceiveMesg_Verify(void *self, void *mesg)
@@ -46,100 +44,24 @@ static bool USART_ReceiveMesg_Verify(void *self, void *mesg)
     return crc16 == mesg_crc16;
 }
 
-/* 中文注释：USART1接收下球盘0x05；保留原解包，旧安卓上报由发送入口统一停用。 */
+/* 中文注释：USART1连接下球盘，九路人物与两路转轮触发直接交给本地游戏。 */
 static void USART1_Deal(void *Rx_mesg)
 {
     Mesg_TypeDef *mesg = (Mesg_TypeDef *)Rx_mesg;
-
-    if (mesg->Code1 != Ball_to_Board)
+    if (mesg->Code1 != Ball_to_Board || mesg->Code2 != BALL_REPORT_EYE || mesg->ExpandCode != KEY_EVENT_SHORT)
         return;
-
-    switch (mesg->Code2)
-    {
-    case BALL_REPORT_VERSION:
-        /* 球盘版本仅在板间协议中接收，安卓0x00由主控VERSION应答。 */
-        break;
-
-    case BALL_REPORT_EYE:
-        if (mesg->Data4 >= 1U && mesg->Data4 <= 5U)
-        {
-            Comm_SendMesg_FillData_withResend(
-                &Tx1,
-                Board_to_Android,
-                t_LightEye,
-                (uint32_t)mesg->Data4,
-                0x00U,
-                &ResendList);
-        }
-        else if (mesg->Data4 == 6U || mesg->Data4 == 7U)
-        {
-            /*
-             * 中文注释：协议表球盘光眼写1~6，但当前原理图实际是PB3~PB7五路+FB1/FB2两路，共7路。
-             * ID6/7映射为安卓黄色两组的编号1/2，ExpandCode=0x01。
-             */
-            Comm_SendMesg_FillData_withResend(
-                &Tx1,
-                Board_to_Android,
-                t_LightEye,
-                (uint32_t)(mesg->Data4 - 5U),
-                0x01U,
-                &ResendList);
-        }
-        break;
-
-    default:
-        break;
-    }
+    if (mesg->Data4 >= 1U && mesg->Data4 <= 9U)
+        Game_CharacterHit(mesg->Data4);
+    else if (mesg->Data4 == 10U || mesg->Data4 == 11U)
+        Game_WheelTrigger();
 }
 
-/* 中文注释：USART3接收通用控台0x03，保持既有功能码2；不启用安卓转发。 */
+/* 中文注释：保持通用控台0x02/0x03功能码，拍拍1出珠、拍拍2兑换；不再转发安卓。 */
 static void USART3_Deal(void *Rx_mesg)
 {
     Mesg_TypeDef *mesg = (Mesg_TypeDef *)Rx_mesg;
-
-    if (mesg->Code1 != Ctrl_to_Board)
-        return;
-
-    switch (mesg->Code2)
-    {
-    case CTRL_REPORT_VERSION:
-        /* 中文注释：安卓协议没有独立控台版本上报功能码，仅接收不转发。 */
-        break;
-
-    case CTRL_REPORT_BUTTON:
-        Comm_SendMesg_FillData(&Tx1, Board_to_Android, t_Button, (uint32_t)mesg->Data4, mesg->ExpandCode);
-        break;
-
-    case CTRL_REPORT_SPECIAL_BUTTON:
-        Comm_SendMesg_FillData(&Tx1, Board_to_Android, t_SpecialButton, (uint32_t)mesg->Data4, mesg->ExpandCode);
-        break;
-
-    case CTRL_REPORT_ENCODER:
-        /*
-         * 中文注释：沿用弹界编码器控制舵机逻辑：
-         * 0x00每次减少1°，0x01每次增加1°，并继续按安卓0x0F原值上报；
-         * 0x02编码器按下将舵机归中到90°，安卓0x0F未定义按下事件，因此不转发。
-         * 有效控制后200ms释放PWM，达到限位后的同向操作不刷新计时。
-         */
-        if (mesg->ExpandCode == 0x00U)
-        {
-            Servo1_Decrease();
-            Comm_SendMesg_FillData(&Tx1, Board_to_Android, t_Encoder, 0U, 0x00U);
-        }
-        else if (mesg->ExpandCode == 0x01U)
-        {
-            Servo1_Increase();
-            Comm_SendMesg_FillData(&Tx1, Board_to_Android, t_Encoder, 0U, 0x01U);
-        }
-        else if (mesg->ExpandCode == 0x02U)
-        {
-            Servo1_Reset();
-        }
-        break;
-
-    default:
-        break;
-    }
+    if (mesg->Code1 == Ctrl_to_Board && mesg->Code2 == CTRL_REPORT_BUTTON)
+        Game_ControlButton(mesg->Data4, mesg->ExpandCode);
 }
 
 static uint8_t USART_SendMesg(Tx_HandleTypeDef *Tx, Mesg_TypeDef *mesg)

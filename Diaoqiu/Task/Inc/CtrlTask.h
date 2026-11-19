@@ -1,51 +1,33 @@
 #ifndef __CTRLTASK_H__
 #define __CTRLTASK_H__
-
 #include "port_device.h"
-
-#define HoolleMotorTimeout_time 3000
-#define CardMotorTimeout_time 3000
-#define HoolleMotorReverse_Time 300
-#define HoolleMotorRetry_Times 3
-#define ValveTimeout_time 800
-
-/* 钢珠电机1速度设为80，按数量出珠和手动运行均使用此参数。 */
-#define HoolleMotor_Speed 80
-#define HoolleMotor2_Speed 80
-#define HoolleMotor_Dir 0
+#define HoolleMotorTimeout_time 3000U
+#define CardMotorTimeout_time 3000U
+#define HoolleMotorReverse_Time 300U
+#define HoolleMotorRetry_Times 3U
+#define HoolleMotor_Speed 80U
+#define HoolleMotor2_Speed 80U
+#define HoolleMotor_Dir 0U
 
 typedef struct
 {
     motor_t Motor;
     volatile uint16_t Hoolle_num;
     volatile uint8_t RetryCount;
-    volatile uint8_t ClearMode;
-    volatile uint8_t ManualRun;
 } Motor_Hoolle;
-
 typedef struct
 {
     switch_t Switch;
     volatile uint16_t Card_num;
-    volatile uint8_t RetryCount;
 } Motor_Card;
-
-typedef struct
-{
-    switch_t Switch;
-    volatile uint8_t TriggerCount;
-} Switch_Valve;
-
 void Device_Init(void);
 void CtrlTask(void);
 void Hoolle_Output(Motor_Hoolle *Motor, uint16_t num);
-void SteelBall_MotorSwitch(uint8_t enable);
-void SteelBall_OutputEverySecond(void);
-void Card_Output(Motor_Card *Switch, uint16_t num);
-void Servo_SetRun(uint8_t enable);
-/* 舵机有效控制后200ms释放PWM，已到限位的同向操作不刷新计时。 */
-void Servo1_Decrease(void);
-void Servo1_Increase(void);
-void Servo1_Reset(void);
-
+void Card_Output(Motor_Card *Card, uint16_t num);
+void Ctrl_PauseOutputs(void);
+void Ctrl_ResumeOutputs(void);
+void Ctrl_ResetFaults(void);
+uint8_t Ctrl_OutputsIdle(void);
+void Ctrl_WheelAngleIRQ(void);
+void Ctrl_WheelResetIRQ(void);
 #endif

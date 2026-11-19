@@ -109,3 +109,15 @@ void USART3_IRQHandler(void)
   /* 中文注释：USART3接收控台协议字节。 */
   HAL_UART_IRQHandler(&huart3);
 }
+
+/* 中文注释：RESET和ANGLE同一时刻到达时先归零，零位本身不再重复算作第1格。 */
+void EXTI15_10_IRQHandler(void)
+{
+  if (__HAL_GPIO_EXTI_GET_IT(ResetInput_Pin) != RESET)
+  {
+    __HAL_GPIO_EXTI_CLEAR_IT(AngleInput_Pin);
+    HAL_GPIO_EXTI_IRQHandler(ResetInput_Pin);
+  }
+  else
+    HAL_GPIO_EXTI_IRQHandler(AngleInput_Pin);
+}

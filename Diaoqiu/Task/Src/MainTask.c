@@ -8,10 +8,11 @@
 #include "port_event.h"
 #include "DigitalTubeTask.h"
 #include "iwdg.h"
+#include "LightTask.h"
 
 #define SYSLIGHT_BLINK_TIME 500U
 
-/* 兼容旧工程中仍参与编译但已退出运行路径的灯效模块。 */
+/* 本地游戏场景状态，沿用现有工程的Scene_t定义。 */
 Scene_t Scene = IdleScene;
 Event_Handle_t Event;
 
@@ -38,10 +39,12 @@ void Main_Init(void)
     CommInit();
     Device_Init();
     HoolleInput_FilterInit();
-    KeyAll_Init();
 
     /* 中文注释：保留主板原理图现有本地数码管接口，不参与安卓0x04/0x05的分板转发。 */
     DigitalTubeTask_Init();
+    LightTask_Init();
+    Game_Init();
+    KeyAll_Init();
 }
 
 void Main_Task(void)
@@ -52,10 +55,12 @@ void Main_Task(void)
     HAL_IWDG_Refresh(&hiwdg);
     Key_Task();
     HAL_IWDG_Refresh(&hiwdg);
-    CtrlTask();
-    HAL_IWDG_Refresh(&hiwdg);
     Mesg_Task();
     HAL_IWDG_Refresh(&hiwdg);
+    CtrlTask();
+    HAL_IWDG_Refresh(&hiwdg);
+    LightTask();
+    Key_LCDTask();
     DigitalTube_Task();
     SystemLight_Task();
 }

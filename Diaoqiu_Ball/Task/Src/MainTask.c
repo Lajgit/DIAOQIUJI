@@ -16,7 +16,7 @@ void System_Reset(void)
 
 void Main_Init(void)
 {
-    /* 中文注释：仅初始化本板现有通信、旧光眼任务与RGB1驱动；无数码管及状态灯。 */
+    /* 中文注释：初始化板间通信、九个人物和两路转轮输入、两条18颗RGB灯带。 */
     CommInit();
     KeyAll_Init();
     Light_Init();

@@ -1,5 +1,6 @@
 #include "KeyTask.h"
 #include "CommTask.h"
+#include "LightTask.h"
 #include "main.h"
 
 #define BALL_EYE_COUNT 11U
@@ -68,6 +69,8 @@ void Key_Task(void)
          */
         if (BallEye_LastState[i] == GPIO_PIN_RESET && CurrentState == GPIO_PIN_SET)
         {
+            if (i < 9U)
+                BallLight_Hit(i + 1U);
             Comm_SendMesg_FillData(
                 &Tx,
                 Ball_to_Board,

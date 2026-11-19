@@ -7,5 +7,6 @@
 
 void KeyAll_Init(void);
 void Key_Task(void);
+void Key_LCDTask(void);
 
 #endif

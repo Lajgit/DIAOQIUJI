@@ -10,6 +10,10 @@ typedef struct
     uint32_t Board_Lightness;
     uint32_t LightBelt_Lightness;
     uint32_t Ctrl_Lightness;
+    uint32_t InputBallsPerCredit;
+    uint32_t PointsPerCard;
+    uint32_t WheelSpeed;
+    uint32_t KeepPending;
 }Setting_TypeDef;
 
 extern Flash_HandleTypeDef hflash;
@@ -18,5 +22,6 @@ extern Setting_TypeDef Setting;
 void ResumeSetting(void);
 void FlashTask_Init(void);
 void FlashTask(void);
+int FlashTask_Save(void);
 
 #endif

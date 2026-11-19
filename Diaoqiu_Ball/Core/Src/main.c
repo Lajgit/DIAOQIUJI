@@ -28,6 +28,7 @@ int main(void)
   /* 球盘 PA6 恢复 TIM3_CH1 PWM/DMA 发送，先使能 DMA 时钟再初始化定时器。 */
   MX_DMA_Init();
   MX_TIM3_Init();
+  MX_TIM1_Init();
   /* 中文注释：球盘与主板固定使用USART1/PA9/PA10。 */
   MX_USART1_UART_Init();
   MX_IWDG_Init();
