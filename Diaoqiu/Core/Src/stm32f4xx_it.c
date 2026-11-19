@@ -77,11 +77,6 @@ void EXTI3_IRQHandler(void)
   HAL_GPIO_EXTI_IRQHandler(HoolleOutput_1_Pin);
 }
 
-void EXTI4_IRQHandler(void)
-{
-  HAL_GPIO_EXTI_IRQHandler(HoolleOutput_2_Pin);
-}
-
 void DMA1_Stream4_IRQHandler(void)
 {
   HAL_DMA_IRQHandler(&hdma_tim3_ch1_trig);

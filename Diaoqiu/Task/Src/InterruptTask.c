@@ -119,50 +119,6 @@ static void Hoolle_1_Output_IRQ(void)
     LastBallStopped = 0U;
 }
 
-static void Hoolle_2_Output_IRQ(void)
-{
-    static uint8_t LastBallStopped = 0U;
-    uint32_t LowCount;
-
-    if (HAL_GPIO_ReadPin(HoolleOutput_2_GPIO_Port, HoolleOutput_2_Pin) == GPIO_PIN_RESET)
-    {
-        __HAL_TIM_SetCounter(&htim7, 0);
-        Motor_Hoolle2.Motor.ResetRuntime(&Motor_Hoolle2.Motor);
-
-        if (Motor_Hoolle2.Hoolle_num == 1U && Motor_Hoolle2.Motor.state == DEVICE_STATE_BUSY)
-        {
-            Motor_Hoolle2.Motor.Stop(&Motor_Hoolle2.Motor);
-            LastBallStopped = 1U;
-        }
-        else
-        {
-            LastBallStopped = 0U;
-        }
-        return;
-    }
-
-    LowCount = __HAL_TIM_GetCounter(&htim7);
-    /* 电机2与电机1使用相同的20计数低电平过滤门槛，抑制短脉冲误计数。 */
-    if (LowCount > HOOLLE_LOW_MIN_COUNT)
-    {
-        if (Motor_Hoolle2.Hoolle_num > 0U)
-        {
-            Motor_Hoolle2.Hoolle_num--;
-            Motor_Hoolle2.RetryCount = 0U;
-            EventGroupSetBits(&Mesg_event, MesgEvent_RemainingEgg);
-            if (Motor_Hoolle2.Hoolle_num == 0U && Motor_Hoolle2.Motor.state != DEVICE_STATE_IDLE)
-                Motor_Hoolle2.Motor.state = DEVICE_STATE_STOP;
-        }
-        LastBallStopped = 0U;
-        return;
-    }
-
-    if (LastBallStopped != 0U && Motor_Hoolle2.Hoolle_num == 1U && Motor_Hoolle2.Motor.state == DEVICE_STATE_BUSY)
-        Motor_Hoolle2.Motor.state = DEVICE_STATE_START;
-
-    LastBallStopped = 0U;
-}
-
 static void CardOutput_IRQ(void)
 {
     Card.Switch.ResetRuntime(&Card.Switch);
@@ -190,9 +146,6 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
         break;
     case HoolleOutput_1_Pin:
         Hoolle_1_Output_IRQ();
-        break;
-    case HoolleOutput_2_Pin:
-        Hoolle_2_Output_IRQ();
         break;
     case CardFeedback_Pin:
         CardOutput_IRQ();

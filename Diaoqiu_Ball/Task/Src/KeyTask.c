@@ -2,13 +2,13 @@
 #include "CommTask.h"
 #include "main.h"
 
-#define BALL_EYE_COUNT 7U
+#define BALL_EYE_COUNT 11U
 #define BALL_EYE_SCAN_MS 3U
 
 /*
- * 中文注释：本次仅迁移旧协议7项的物理引脚，前5项对应U1/U3/U4/U5/U6，
- * 后2项对应CN1/CN2。其余4路已配置为输入，待确认协议编号后再加入上报，
- * 不能把硬件器件顺序直接当作新协议编号。
+ * 中文注释：人物1~9依次对应U1、U3~U10；CN1/CN2使用上报编号10/11。
+ * 人物顺序：杨戬、姜子牙、雷震子、哪吒、太上老君、闻太师、李靖、元始天尊、土行孙。
+ * 保持原14字节帧及0x05/0x01光眼功能码，仅补齐新硬件的输入编号。
  */
 static GPIO_TypeDef *BallEye_Port[BALL_EYE_COUNT] = {
     BallEye1_GPIO_Port,
@@ -16,6 +16,10 @@ static GPIO_TypeDef *BallEye_Port[BALL_EYE_COUNT] = {
     BallEye3_GPIO_Port,
     BallEye4_GPIO_Port,
     BallEye5_GPIO_Port,
+    BallEye6_GPIO_Port,
+    BallEye7_GPIO_Port,
+    BallEye8_GPIO_Port,
+    BallEye9_GPIO_Port,
     BallEyeExternal1_GPIO_Port,
     BallEyeExternal2_GPIO_Port,
 };
@@ -26,6 +30,10 @@ static uint16_t BallEye_Pin[BALL_EYE_COUNT] = {
     BallEye3_Pin,
     BallEye4_Pin,
     BallEye5_Pin,
+    BallEye6_Pin,
+    BallEye7_Pin,
+    BallEye8_Pin,
+    BallEye9_Pin,
     BallEyeExternal1_Pin,
     BallEyeExternal2_Pin,
 };
