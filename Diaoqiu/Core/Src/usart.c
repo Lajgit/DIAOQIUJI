@@ -48,7 +48,7 @@ void MX_USART1_UART_Init(void)
 /* USART2 init function */
 void MX_USART2_UART_Init(void)
 {
-  /* 中文注释：用户确认YC686B，按厂家V1.5协议使用9600 8N1；main暂不启用，播放与反馈驱动待接入。 */
+  /* 中文注释：用户确认YC686B，按厂家V1.5协议使用9600 8N1，播放/反馈由CommTask独立处理。 */
   huart2.Instance = USART2;
   huart2.Init.BaudRate = 9600;
   huart2.Init.WordLength = UART_WORDLENGTH_8B;

@@ -5,6 +5,7 @@
 #include "CommTask.h"
 #include "port_event.h"
 #include "tim.h"
+#include "usart.h"
 
 #define HOOLLE_INPUT_FILTER_MS 3U
 
@@ -147,6 +148,12 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
     Rx_HandleTypeDef *Rx = NULL;
 
+    if (huart == &huart2)
+    {
+        YC686_ReceiveIRQ();
+        return;
+    }
+
     if (huart == Rx1.Handle.huart)
         Rx = &Rx1;
     else if (huart == Rx3.Handle.huart)
@@ -154,8 +161,14 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 
     if (Rx != NULL)
     {
-        /* 中文注释：USART1/USART3按单字节中断写入各自环形缓冲区，语音口不绑定旧球盘协议。 */
+        /* 中文注释：USART1/USART3保留14字节链路，USART2上方分支独立处理YC686B字节。 */
         Rx->Handle.RingBuf.f_WriteByte(&Rx->Handle.RingBuf, Rx->Handle.temp_data);
         HAL_UART_Receive_IT(huart, &Rx->Handle.temp_data, 1);
     }
+}
+
+void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
+{
+    if (huart == &huart2)
+        YC686_ErrorIRQ();
 }

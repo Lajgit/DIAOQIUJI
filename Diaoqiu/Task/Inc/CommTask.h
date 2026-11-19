@@ -135,4 +135,32 @@ void MesgDeal_Task(void);
 void CommInit(void);
 void CommTask(void);
 
+/* 中文注释：YC686B独立语音驱动；本次不定义曲号、不绑定游戏音效。 */
+#define YC686_LINK_OK 0U
+#define YC686_LINK_TIMEOUT 1U
+#define YC686_LINK_UART 2U
+#define YC686_LINK_RESET 3U
+typedef struct
+{
+    uint8_t Ready;          /* A2或有效30应答确认模块已准备好 */
+    uint8_t Busy;           /* 仅表示本组控制命令尚未完成，不代表正在发声 */
+    uint8_t StateValid;
+    uint8_t PlayState;      /* 最近应答：0停止、1播放、2暂停 */
+    uint8_t Volume;         /* FF表示尚未得到设置应答 */
+    uint8_t Mode;
+    uint8_t OnlineValid;
+    uint8_t OnlineDevices;  /* A1通知的设备在线位图 */
+    uint8_t LastAck;        /* 0C播放应答，FF表示等待；E2表示曲目不存在 */
+    uint8_t LinkError;
+    uint32_t LastFeedbackTick;
+} YC686_State_t;
+extern YC686_State_t YC686;
+HAL_StatusTypeDef YC686_Stop(void);
+HAL_StatusTypeDef YC686_SetVol(uint8_t volume);
+HAL_StatusTypeDef YC686_SetPlayMode(uint8_t mode);
+HAL_StatusTypeDef YC686_PlayMusic(uint16_t track);
+HAL_StatusTypeDef YC686_SwitchMusic(uint8_t mode, uint16_t track, uint8_t volume);
+void YC686_ReceiveIRQ(void);
+void YC686_ErrorIRQ(void);
+
 #endif

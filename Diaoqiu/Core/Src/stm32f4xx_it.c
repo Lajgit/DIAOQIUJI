@@ -100,7 +100,7 @@ void USART1_IRQHandler(void)
 
 void USART2_IRQHandler(void)
 {
-  /* 中文注释：USART2预留语音模块，当前main未启用，不再绑定球盘协议。 */
+  /* 中文注释：USART2接YC686B语音，接收回调独立于两路14字节协议。 */
   HAL_UART_IRQHandler(&huart2);
 }
 
