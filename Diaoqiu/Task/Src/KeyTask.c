@@ -20,7 +20,21 @@ static uint8_t LcdCache[4][16];
 static void LCD_Write(uint8_t data, uint8_t command)
 {
     uint8_t frame[3] = {command ? 0xF8U : 0xFAU, (uint8_t)(data & 0xF0U), (uint8_t)(data << 4)};
+    uint32_t remaining = ((SystemCoreClock + 999999U) / 1000000U) * 75U;
+    uint32_t period = SysTick->LOAD + 1U;
+    uint32_t previous, current, elapsed;
     SoftwareSPI_Transmit(&LcdSpi, frame, 3U);
+    /* 中文注释：12864ZK串口例程每帧后等待75us；使用现有HCLK源SysTick，不改时基、不关闭光眼/串口中断。 */
+    previous = SysTick->VAL;
+    while (remaining != 0U)
+    {
+        current = SysTick->VAL;
+        elapsed = previous >= current ? previous - current : previous + period - current;
+        if (elapsed >= remaining)
+            break;
+        remaining -= elapsed;
+        previous = current;
+    }
 }
 
 static void LCD_Init(void)
