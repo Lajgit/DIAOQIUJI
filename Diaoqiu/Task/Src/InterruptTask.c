@@ -10,6 +10,7 @@
 #define HOOLLE_INPUT_FILTER_MS 3U
 
 volatile uint16_t HoolleInputPendingCount = 0U;
+volatile uint16_t CoinInputPendingCount = 0U;
 volatile uint16_t BallOutputPendingCount = 0U;
 volatile uint16_t CardOutputPendingCount = 0U;
 
@@ -100,6 +101,20 @@ static void Hoolle_1_Output_IRQ(void)
     LastStopped = 0U;
 }
 
+static void CoinInput_IRQ(void)
+{
+    static uint8_t Seen;
+    static uint32_t LastTick;
+    uint32_t now = HAL_GetTick();
+    /* 中文注释：沿用PE6上升沿与50ms去抖，只累计音效事件，由主循环处理。 */
+    if (Seen && (uint32_t)(now - LastTick) < 50U)
+        return;
+    Seen = 1U;
+    LastTick = now;
+    if (CoinInputPendingCount < UINT16_MAX)
+        CoinInputPendingCount++;
+}
+
 static void CardOutput_IRQ(void)
 {
     static uint8_t Seen;
@@ -129,6 +144,9 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
     {
     case HoolleOutput_1_Pin:
         Hoolle_1_Output_IRQ();
+        break;
+    case CoinInput_Pin:
+        CoinInput_IRQ();
         break;
     case CardFeedback_Pin:
         CardOutput_IRQ();

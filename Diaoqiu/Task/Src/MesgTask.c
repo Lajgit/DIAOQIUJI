@@ -22,11 +22,66 @@ static uint8_t RedeemPending;
 static uint32_t LastCreditDisplay;
 static uint32_t LastCreditDisplayTick;
 
+/* 中文注释：首轮Flash按001~007复制，真实曲号仍须上机试听确认；单曲一次，音量8。 */
+#define GAME_MUSIC_COIN 1U
+#define GAME_MUSIC_START 2U
+#define GAME_MUSIC_CHARACTER 3U
+#define GAME_MUSIC_LINE 4U
+#define GAME_MUSIC_FULL 5U
+#define GAME_MUSIC_REDEEM 6U
+#define GAME_MUSIC_FAULT 7U
+#define GAME_MUSIC_BIT(id) ((uint8_t)(1U << ((id) - 1U)))
+static uint8_t MusicPending;
+static uint8_t CurrentMusic;
+
+static void Game_QueueMusic(uint8_t music)
+{
+    /* 同类提示合并，故障期间不积压普通提示；这里只记事件，不在临界区发送串口。 */
+    if (music == CurrentMusic || (Game.Faults != 0U && music != GAME_MUSIC_FAULT))
+        return;
+    if (music == GAME_MUSIC_FULL)
+        MusicPending &= (uint8_t)~(GAME_MUSIC_BIT(GAME_MUSIC_CHARACTER) | GAME_MUSIC_BIT(GAME_MUSIC_LINE));
+    else if (music == GAME_MUSIC_LINE)
+        MusicPending &= (uint8_t)~GAME_MUSIC_BIT(GAME_MUSIC_CHARACTER);
+    MusicPending |= GAME_MUSIC_BIT(music);
+}
+
+static void Game_MusicTask(void)
+{
+    static const uint8_t Priority[7] = {GAME_MUSIC_FAULT, GAME_MUSIC_FULL, GAME_MUSIC_LINE,
+        GAME_MUSIC_REDEEM, GAME_MUSIC_COIN, GAME_MUSIC_START, GAME_MUSIC_CHARACTER};
+    uint8_t i, music;
+    if (!YC686.Ready || YC686.Busy)
+        return;
+    /* Busy只是命令事务，B款须查询到有效停止状态才算播放结束。故障可抢占普通提示。 */
+    if (CurrentMusic != 0U && YC686.StateValid && YC686.PlayState == 0U)
+        CurrentMusic = 0U;
+    if (CurrentMusic != 0U && (MusicPending & GAME_MUSIC_BIT(GAME_MUSIC_FAULT)) == 0U)
+        return;
+    for (i = 0U; i < 7U; i++)
+    {
+        music = Priority[i];
+        if ((MusicPending & GAME_MUSIC_BIT(music)) != 0U)
+        {
+            /* HAL_OK表示已接受；交给原驱动应答推进，不自动重播超时或缺失的曲目。 */
+            if (YC686_SwitchMusic(4U, music, 8U) == HAL_OK)
+            {
+                MusicPending &= (uint8_t)~GAME_MUSIC_BIT(music);
+                CurrentMusic = music;
+            }
+            return;
+        }
+    }
+}
+
 static void Game_CollectFeedback(void)
 {
-    uint16_t inputs, balls, cards, remaining_cards;
+    uint16_t inputs, balls, cards, remaining_cards, coins;
+    uint32_t previous_credits = Game.BallCredits;
     uint32_t primask = __get_PRIMASK();
     __disable_irq();
+    coins = CoinInputPendingCount;
+    CoinInputPendingCount = 0U;
     inputs = HoolleInputPendingCount;
     balls = BallOutputPendingCount;
     cards = CardOutputPendingCount;
@@ -49,6 +104,12 @@ static void Game_CollectFeedback(void)
     }
     Game.BallCredits = balls <= Game.BallCredits ? Game.BallCredits - balls : 0U;
 
+    /* PE6投币只提示，不改变PE2投珠换余额的既定规则。余额0变正仅提示一次开始。 */
+    if (coins != 0U)
+        Game_QueueMusic(GAME_MUSIC_COIN);
+    if (previous_credits == 0U && Game.BallCredits != 0U)
+        Game_QueueMusic(GAME_MUSIC_START);
+
     /* 中文注释：兑换单价在本次出卡开始时锁定，实际PE5反馈后才扣分。 */
     while (cards-- != 0U && Game.CardUnitPoints != 0U)
     {
@@ -69,6 +130,7 @@ uint8_t Game_CanRun(void)
 void Game_Init(void)
 {
     memset(&Game, 0, sizeof(Game));
+    MusicPending = CurrentMusic = 0U;
     Button1Pending = 0U;
     RedeemPending = 0U;
     LastCreditDisplay = UINT32_MAX;
@@ -79,7 +141,7 @@ void Game_Init(void)
 
 void Game_CharacterHit(uint8_t character)
 {
-    uint8_t count = 0U, i;
+    uint8_t count = 0U, i, previous_lines = Game.LineCount;
     uint16_t bit;
     if (character < 1U || character > 9U || Game.FullFlash != 0U)
         return;
@@ -103,6 +165,9 @@ void Game_CharacterHit(uint8_t character)
         Game.FullFlashTick = HAL_GetTick();
     }
     Light_SetGrid(Game.GridMask, Game.LineCount, Game.FullFlash);
+    /* 同一次新点亮只选最高奖励提示，转轮命中也复用此入口。 */
+    Game_QueueMusic(Game.FullFlash ? GAME_MUSIC_FULL :
+        (count > previous_lines ? GAME_MUSIC_LINE : GAME_MUSIC_CHARACTER));
 }
 
 void Game_WheelTrigger(void)
@@ -134,6 +199,12 @@ void Game_SetMenu(uint8_t active)
 
 void Game_SetFault(uint8_t fault)
 {
+    if ((fault & (uint8_t)~Game.Faults) != 0U)
+    {
+        /* 新故障清掉普通待播提示，相同锁存故障不循环播报。 */
+        MusicPending = 0U;
+        Game_QueueMusic(GAME_MUSIC_FAULT);
+    }
     Game.Faults |= fault;
     Button1Pending = 0U;
     RedeemPending = 0U;
@@ -154,6 +225,7 @@ void Game_Recover(uint8_t keep_pending)
         Game.WheelPending = 0U;
     }
     Game.Faults = 0U;
+    MusicPending &= (uint8_t)~GAME_MUSIC_BIT(GAME_MUSIC_FAULT);
     Ctrl_ResetFaults();
     __set_PRIMASK(primask);
     /* 后台内只解除故障，不运行电机；退出后台后再恢复保留的未出任务。 */
@@ -197,6 +269,7 @@ void Mesg_Task(void)
                 {
                     Game.CardUnitPoints = Setting.PointsPerCard;
                     Card_Output(&Card, (uint16_t)cards);
+                    Game_QueueMusic(GAME_MUSIC_REDEEM);
                 }
             }
         }
@@ -210,4 +283,5 @@ void Mesg_Task(void)
         LastCreditDisplay = Game.BallCredits;
         LastCreditDisplayTick = now;
     }
+    Game_MusicTask();
 }
