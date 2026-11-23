@@ -14,15 +14,16 @@ extern Motor_Card Card;
 extern Scene_t Scene;
 
 Game_State_t Game;
-/* 中文注释：仅三横三竖，人物按效果图从左到右、从上到下编号1~9。 */
+/* 中文注释：人物按效果图1~9排列，只算三横三竖；新档位逐项独立奖励。 */
 static const uint16_t GridLines[6] = {0x007U, 0x038U, 0x1C0U, 0x049U, 0x092U, 0x124U};
 static const uint16_t LinePoints[7] = {0U, 20U, 50U, 100U, 180U, 300U, 500U};
 static uint16_t Button1Pending;
 static uint8_t RedeemPending;
-static uint32_t LastCreditDisplay;
-static uint32_t LastCreditDisplayTick;
+static volatile uint8_t ValveActive;
+static uint32_t LastCreditDisplay, LastCreditDisplayTick;
+static uint8_t LastDisplayMode;
 
-/* 中文注释：首轮Flash按001~007复制，真实曲号仍须上机试听确认；单曲一次，音量8。 */
+/* 中文注释：001~008全为无人声合成提示音，真实Flash曲号仍须试听核对。 */
 #define GAME_MUSIC_COIN 1U
 #define GAME_MUSIC_START 2U
 #define GAME_MUSIC_CHARACTER 3U
@@ -30,17 +31,16 @@ static uint32_t LastCreditDisplayTick;
 #define GAME_MUSIC_FULL 5U
 #define GAME_MUSIC_REDEEM 6U
 #define GAME_MUSIC_FAULT 7U
+#define GAME_MUSIC_FAIL 8U
 #define GAME_MUSIC_BIT(id) ((uint8_t)(1U << ((id) - 1U)))
-static uint8_t MusicPending;
-static uint8_t CurrentMusic;
+static uint8_t MusicPending, CurrentMusic;
 
 static void Game_QueueMusic(uint8_t music)
 {
-    /* 同类提示合并，故障期间不积压普通提示；这里只记事件，不在临界区发送串口。 */
     if (music == CurrentMusic || (Game.Faults != 0U && music != GAME_MUSIC_FAULT))
         return;
-    if (music == GAME_MUSIC_FULL)
-        MusicPending &= (uint8_t)~(GAME_MUSIC_BIT(GAME_MUSIC_CHARACTER) | GAME_MUSIC_BIT(GAME_MUSIC_LINE));
+    if (music == GAME_MUSIC_FAIL || music == GAME_MUSIC_FULL)
+        MusicPending &= GAME_MUSIC_BIT(GAME_MUSIC_FAULT);
     else if (music == GAME_MUSIC_LINE)
         MusicPending &= (uint8_t)~GAME_MUSIC_BIT(GAME_MUSIC_CHARACTER);
     MusicPending |= GAME_MUSIC_BIT(music);
@@ -48,22 +48,22 @@ static void Game_QueueMusic(uint8_t music)
 
 static void Game_MusicTask(void)
 {
-    static const uint8_t Priority[7] = {GAME_MUSIC_FAULT, GAME_MUSIC_FULL, GAME_MUSIC_LINE,
-        GAME_MUSIC_REDEEM, GAME_MUSIC_COIN, GAME_MUSIC_START, GAME_MUSIC_CHARACTER};
+    static const uint8_t Priority[8] = {GAME_MUSIC_FAULT, GAME_MUSIC_FAIL, GAME_MUSIC_FULL,
+        GAME_MUSIC_LINE, GAME_MUSIC_REDEEM, GAME_MUSIC_COIN, GAME_MUSIC_START, GAME_MUSIC_CHARACTER};
     uint8_t i, music;
     if (!YC686.Ready || YC686.Busy)
         return;
-    /* Busy只是命令事务，B款须查询到有效停止状态才算播放结束。故障可抢占普通提示。 */
     if (CurrentMusic != 0U && YC686.StateValid && YC686.PlayState == 0U)
         CurrentMusic = 0U;
-    if (CurrentMusic != 0U && (MusicPending & GAME_MUSIC_BIT(GAME_MUSIC_FAULT)) == 0U)
+    /* Busy只是命令事务；普通提示等实际停止，成功/失败/故障可抢占普通提示。 */
+    if (CurrentMusic != 0U && (MusicPending & (GAME_MUSIC_BIT(GAME_MUSIC_FAULT) |
+        GAME_MUSIC_BIT(GAME_MUSIC_FAIL) | GAME_MUSIC_BIT(GAME_MUSIC_FULL))) == 0U)
         return;
-    for (i = 0U; i < 7U; i++)
+    for (i = 0U; i < 8U; i++)
     {
         music = Priority[i];
         if ((MusicPending & GAME_MUSIC_BIT(music)) != 0U)
         {
-            /* HAL_OK表示已接受；交给原驱动应答推进，不自动重播超时或缺失的曲目。 */
             if (YC686_SwitchMusic(4U, music, 8U) == HAL_OK)
             {
                 MusicPending &= (uint8_t)~GAME_MUSIC_BIT(music);
@@ -74,198 +74,362 @@ static void Game_MusicTask(void)
     }
 }
 
-static void Game_CollectFeedback(void)
+static void Game_Add(uint32_t *value, uint64_t added)
 {
-    uint16_t inputs, balls, cards, remaining_cards, coins;
-    uint32_t previous_credits = Game.BallCredits;
+    *value = added <= UINT32_MAX - *value ? *value + (uint32_t)added : UINT32_MAX;
+}
+
+void Game_CollectFeedback(void)
+{
+    uint16_t inputs, balls, cards, remaining_cards, remaining_balls, coins;
+    uint32_t units;
+    uint64_t charge;
     uint32_t primask = __get_PRIMASK();
     __disable_irq();
     coins = CoinInputPendingCount;
-    CoinInputPendingCount = 0U;
     inputs = HoolleInputPendingCount;
     balls = BallOutputPendingCount;
     cards = CardOutputPendingCount;
     remaining_cards = Card.Card_num;
-    HoolleInputPendingCount = 0U;
-    BallOutputPendingCount = 0U;
-    CardOutputPendingCount = 0U;
+    remaining_balls = Motor_Hoolle1.Hoolle_num;
+    CoinInputPendingCount = HoolleInputPendingCount = 0U;
+    BallOutputPendingCount = CardOutputPendingCount = 0U;
     __set_PRIMASK(primask);
-
-    /* 中文注释：PE2只累计投珠，不加总分；不足一份兑换比例的余珠继续保留。 */
-    Game.InputRemainder += inputs;
-    if (Setting.InputBallsPerCredit != 0U)
+    /* 中文注释：只结算选定的投入源；互通时只加总分，不再同时增加可用币。 */
+    units = Setting.InputMode ? inputs : coins;
+    if (units != 0U)
     {
-        uint32_t credits = Game.InputRemainder / Setting.InputBallsPerCredit;
-        Game.InputRemainder %= Setting.InputBallsPerCredit;
-        if (credits <= UINT32_MAX - Game.BallCredits)
-            Game.BallCredits += credits;
+        if (Setting.CoinScoreLink)
+            Game_Add(&Game.Score, (uint64_t)units * Setting.PointsPerCoin);
         else
-            Game.BallCredits = UINT32_MAX;
-    }
-    Game.BallCredits = balls <= Game.BallCredits ? Game.BallCredits - balls : 0U;
-
-    /* PE6投币只提示，不改变PE2投珠换余额的既定规则。余额0变正仅提示一次开始。 */
-    if (coins != 0U)
+            Game_Add(&Game.CoinCredits, units);
         Game_QueueMusic(GAME_MUSIC_COIN);
-    if (previous_credits == 0U && Game.BallCredits != 0U)
-        Game_QueueMusic(GAME_MUSIC_START);
-
-    /* 中文注释：兑换单价在本次出卡开始时锁定，实际PE5反馈后才扣分。 */
-    while (cards-- != 0U && Game.CardUnitPoints != 0U)
-    {
-        if (Game.Score >= Game.CardUnitPoints)
-            Game.Score -= Game.CardUnitPoints;
-        else
-            Game.Score = 0U;
     }
+    /* 出球前预留费用，PE3确认后才扣：每局首颗一次，每球逐颗一次。 */
+    if (balls != 0U && Game.BallUnitCost != 0U)
+    {
+        units = Game.RoundMode ? Game.FeePending : balls;
+        charge = (uint64_t)units * Game.BallUnitCost;
+        if (Game.BallPayPoints)
+            Game.Score = charge <= Game.Score ? Game.Score - (uint32_t)charge : 0U;
+        else
+            Game.CoinCredits = charge <= Game.CoinCredits ? Game.CoinCredits - (uint32_t)charge : 0U;
+        if (Game.RoundMode) Game.FeePending = 0U;
+    }
+    if (remaining_balls == 0U)
+        Game.BallUnitCost = 0U;
+    charge = (uint64_t)cards * Game.CardUnitPoints;
+    Game.Score = charge <= Game.Score ? Game.Score - (uint32_t)charge : 0U;
     if (remaining_cards == 0U)
         Game.CardUnitPoints = 0U;
 }
 
 uint8_t Game_CanRun(void)
 {
-    return Game.MenuActive == 0U && Game.Faults == 0U;
+    return !Game.MenuActive && !Game.Faults && !Game.Failing && !Game.FullFlash;
+}
+
+static uint8_t Game_CanPlay(void)
+{
+    return Game_CanRun() && !Game.WheelBusy;
+}
+
+static int Game_Persist(void)
+{
+    if ((Game.Faults & GAME_FAULT_FLASH) != 0U)
+        return 1;
+    if (FlashTask_SaveWallet(Game.CoinCredits, Game.Score, 0U) == 0)
+        return 0;
+    Game_SetFault(GAME_FAULT_FLASH);
+    return 1;
 }
 
 void Game_Init(void)
 {
     memset(&Game, 0, sizeof(Game));
+    FlashTask_LoadWallet(&Game.CoinCredits, &Game.Score);
     MusicPending = CurrentMusic = 0U;
-    Button1Pending = 0U;
-    RedeemPending = 0U;
+    Button1Pending = RedeemPending = ValveActive = 0U;
     LastCreditDisplay = UINT32_MAX;
+    LastDisplayMode = 0xFFU;
     LastCreditDisplayTick = HAL_GetTick();
+    HAL_GPIO_WritePin(LockOutput_GPIO_Port, LockOutput_Pin, GPIO_PIN_RESET);
     Light_SetGrid(0U, 0U, 0U);
-    DigitalTube_SetTotals(0U, 0U);
+    DigitalTube_SetTotals(Game.Score, Setting.PointsPerCard ? Game.Score / Setting.PointsPerCard : 0U);
 }
 
-void Game_CharacterHit(uint8_t character)
+static void Game_EndRound(uint8_t success)
 {
-    uint8_t count = 0U, i, previous_lines = Game.LineCount;
-    uint16_t bit;
-    if (character < 1U || character > 9U || Game.FullFlash != 0U)
-        return;
-    bit = (uint16_t)(1U << (character - 1U));
-    if ((Game.GridMask & bit) != 0U)
-        return;
-    Game.GridMask |= bit;
-    for (i = 0U; i < 6U; i++)
-        if ((Game.GridMask & GridLines[i]) == GridLines[i])
-            count++;
-    /* 中文注释：按档位补差，满盘本轮总计500分，不再追加第二次500。 */
-    if (count > Game.LineCount)
-    {
-        uint32_t added = LinePoints[count] - LinePoints[Game.LineCount];
-        Game.Score = added <= UINT32_MAX - Game.Score ? Game.Score + added : UINT32_MAX;
-        Game.LineCount = count;
-    }
-    if (Game.GridMask == 0x1FFU)
+    uint32_t primask = __get_PRIMASK();
+    __disable_irq();
+    /* 先结清物理反馈再取消未出的球；未确认的预留费用不扣，卡片未出任务保留。 */
+    Game_CollectFeedback();
+    Ctrl_PauseOutputs();
+    Motor_Hoolle1.Hoolle_num = 0U;
+    Game.BallUnitCost = 0U;
+    Game.FeePending = 0U;
+    Game.WheelPending = 0U;
+    Game.WheelBusy = 0U;
+    Game.RoundActive = 0U;
+    Button1Pending = RedeemPending = 0U;
+    Ctrl_ResetFaults();
+    if (success)
     {
         Game.FullFlash = 1U;
         Game.FullFlashTick = HAL_GetTick();
     }
+    else
+    {
+        Game.GridMask = Game.HitMask = 0U;
+        Game.LineCount = 0U;
+        Game.FailTick = HAL_GetTick();
+        Game.Failing = ValveActive = 1U;
+        HAL_GPIO_WritePin(LockOutput_GPIO_Port, LockOutput_Pin, GPIO_PIN_SET);
+    }
+    __set_PRIMASK(primask);
     Light_SetGrid(Game.GridMask, Game.LineCount, Game.FullFlash);
-    /* 同一次新点亮只选最高奖励提示，转轮命中也复用此入口。 */
-    Game_QueueMusic(Game.FullFlash ? GAME_MUSIC_FULL :
-        (count > previous_lines ? GAME_MUSIC_LINE : GAME_MUSIC_CHARACTER));
+    Game_QueueMusic(success ? GAME_MUSIC_FULL : GAME_MUSIC_FAIL);
+}
+
+static void Game_LightCharacter(uint8_t character)
+{
+    uint8_t count = 0U, i;
+    uint16_t bit = (uint16_t)(1U << (character - 1U));
+    uint32_t added = 0U;
+    if ((Game.GridMask & bit) != 0U)
+        return;
+    Game.GridMask |= bit;
+    for (i = 0U; i < 6U; i++)
+        if ((Game.GridMask & GridLines[i]) == GridLines[i]) count++;
+    /* 中文注释：独立累加每个跨过的档位；四线直达六线仍加300+500，整盘1150。 */
+    for (i = (uint8_t)(Game.LineCount + 1U); i <= count; i++)
+        added += LinePoints[i];
+    Game.LineCount = count;
+    Game_Add(&Game.Score, added);
+    if (Game.GridMask == 0x1FFU)
+        Game_EndRound(1U);
+    else
+    {
+        Light_SetGrid(Game.GridMask, count, 0U);
+        Game_QueueMusic(added ? GAME_MUSIC_LINE : GAME_MUSIC_CHARACTER);
+    }
+}
+
+void Game_CharacterHit(uint8_t character)
+{
+    uint16_t bit;
+    if (!Game_CanPlay() || !Game.RoundActive || character < 1U || character > 9U)
+        return;
+    bit = (uint16_t)(1U << (character - 1U));
+    /* 实体微动命中次数独立于转轮点亮；同一实体第二次才判负。 */
+    if ((Game.HitMask & bit) != 0U)
+    {
+        Game_EndRound(0U);
+        return;
+    }
+    Game.HitMask |= bit;
+    Game_LightCharacter(character);
+}
+
+void Game_WheelHit(uint8_t character)
+{
+    Game.WheelBusy = 0U;
+    if (Game_CanRun() && Game.RoundActive && character >= 1U && character <= 9U)
+        Game_LightCharacter(character);
+    Comm_ClearGameInput();
+    if (Game_CanRun()) Ctrl_ResumeOutputs();
 }
 
 void Game_WheelTrigger(void)
 {
-    if (Game.WheelPending < UINT16_MAX)
-        Game.WheelPending++;
+    if (!Game_CanPlay() || !Game.RoundActive || Game.GridMask == 0x1FFU)
+        return;
+    Game.WheelTick = HAL_GetTick();
+    Game.WheelBusy = 1U;
+    Game.WheelPending = 1U;
+    /* 一秒等待和转动期间，其他输出暂停，只有转轮任务可以运行。 */
+    Ctrl_PauseOutputs();
+    Ctrl_ResumeOutputs();
 }
 
 void Game_ControlButton(uint8_t button, uint8_t event)
 {
-    if (event != KEY_EVENT_SHORT || !Game_CanRun())
-        return;
-    if (button == 1U && Button1Pending < UINT16_MAX)
-        Button1Pending++;
-    else if (button == 2U)
-        RedeemPending = 1U;
+    if (event != KEY_EVENT_SHORT || !Game_CanPlay()) return;
+    if (button == 1U && Button1Pending < UINT16_MAX) Button1Pending++;
+    else if (button == 2U) RedeemPending = 1U;
 }
 
 void Game_SetMenu(uint8_t active)
 {
     Game.MenuActive = active != 0U;
-    Button1Pending = 0U;
-    RedeemPending = 0U;
-    if (Game.MenuActive)
-        Ctrl_PauseOutputs();
+    Button1Pending = RedeemPending = 0U;
+    if (Game.MenuActive) Ctrl_PauseOutputs();
     else if (Game_CanRun())
+    {
+        Comm_ClearGameInput();
         Ctrl_ResumeOutputs();
+    }
 }
 
 void Game_SetFault(uint8_t fault)
 {
     if ((fault & (uint8_t)~Game.Faults) != 0U)
     {
-        /* 新故障清掉普通待播提示，相同锁存故障不循环播报。 */
         MusicPending = 0U;
         Game_QueueMusic(GAME_MUSIC_FAULT);
     }
     Game.Faults |= fault;
-    Button1Pending = 0U;
-    RedeemPending = 0U;
+    Button1Pending = RedeemPending = 0U;
     Ctrl_PauseOutputs();
 }
 
 void Game_Recover(uint8_t keep_pending)
 {
-    /* 中文注释：先结清已发生的物理反馈，取消任务不退回已出的珠、不重复扣卡分。 */
     uint32_t primask = __get_PRIMASK();
     __disable_irq();
     Game_CollectFeedback();
     if (!keep_pending)
     {
-        Motor_Hoolle1.Hoolle_num = 0U;
-        Card.Card_num = 0U;
-        Game.CardUnitPoints = 0U;
-        Game.WheelPending = 0U;
+        Motor_Hoolle1.Hoolle_num = Card.Card_num = 0U;
+        Game.CardUnitPoints = Game.BallUnitCost = 0U;
+        Game.WheelPending = Game.WheelBusy = 0U;
+    }
+    else if (Game.WheelBusy)
+        Game.WheelTick = HAL_GetTick();
+    Ctrl_ResetFaults();
+    __set_PRIMASK(primask);
+    /* Flash失败只在后台明确恢复时重试，不能在中断/临界区里写Flash。 */
+    if (FlashTask_SaveWallet(Game.CoinCredits, Game.Score, 0U) != 0)
+    {
+        Game_SetFault(GAME_FAULT_FLASH);
+        return;
     }
     Game.Faults = 0U;
     MusicPending &= (uint8_t)~GAME_MUSIC_BIT(GAME_MUSIC_FAULT);
-    Ctrl_ResetFaults();
+    Comm_ClearGameInput();
+    if (Game_CanRun()) Ctrl_ResumeOutputs();
+}
+
+int Game_SaveSettings(void)
+{
+    uint32_t coins = Game.CoinCredits, score = Game.Score;
+    uint64_t converted;
+    if (Game_Persist() != 0) return 1;
+    if (Setting.CoinScoreLink && coins != 0U)
+    {
+        converted = (uint64_t)score + (uint64_t)coins * Setting.PointsPerCoin;
+        if (converted > UINT32_MAX) return 1;
+        score = (uint32_t)converted;
+        coins = 0U;
+    }
+    if (FlashTask_SaveWallet(coins, score, 1U) != 0) return 1;
+    /* 开启互通时一并转换既有币和待出球的费用预留，避免隐藏余额或重复收费。 */
+    if (Game.CoinCredits != coins && Game.BallUnitCost && !Game.BallPayPoints)
+    {
+        Game.BallUnitCost *= Setting.PointsPerCoin;
+        Game.BallPayPoints = 1U;
+    }
+    Game.CoinCredits = coins;
+    Game.Score = score;
+    HoolleInput_FilterInit();
+    return 0;
+}
+
+void Game_Timer1ms(void)
+{
+    /* 中文注释：PA0一秒释放在既有1ms中断内关断，LCD刷新不会延长释放时间。 */
+    if (ValveActive && (uint32_t)(HAL_GetTick() - Game.FailTick) >= 1000U)
+    {
+        HAL_GPIO_WritePin(LockOutput_GPIO_Port, LockOutput_Pin, GPIO_PIN_RESET);
+        ValveActive = 0U;
+    }
+}
+
+static uint64_t Game_BallReserved(void)
+{
+    uint32_t pending = (uint32_t)Motor_Hoolle1.Hoolle_num + BallOutputPendingCount;
+    return (uint64_t)(Game.RoundMode ? (pending != 0U && Game.FeePending) : pending) * Game.BallUnitCost;
+}
+
+static void Game_RequestBall(void)
+{
+    uint32_t primask = __get_PRIMASK();
+    uint32_t pending, cost;
+    uint64_t required, card_reserved;
+    uint8_t mode, fee, points;
+    __disable_irq();
+    pending = (uint32_t)Motor_Hoolle1.Hoolle_num + BallOutputPendingCount;
+    mode = Game.RoundActive ? Game.RoundMode : (uint8_t)Setting.PlayMode;
+    fee = Game.RoundActive ? Game.FeePending : 1U;
+    points = (uint8_t)Setting.CoinScoreLink;
+    cost = Setting.CoinsPerPlay * (points ? Setting.PointsPerCoin : 1U);
+    if (pending && Game.BallUnitCost)
+    {
+        /* 同一未完成批次锁定价格；切换币/分支付后先完成旧批次，再收新请求。 */
+        if (points != Game.BallPayPoints) goto finish;
+        cost = Game.BallUnitCost;
+    }
+    required = (uint64_t)(mode ? fee : pending + 1U) * cost;
+    card_reserved = (uint64_t)((uint32_t)Card.Card_num + CardOutputPendingCount) * Game.CardUnitPoints;
+    if (Motor_Hoolle1.Hoolle_num == UINT16_MAX ||
+        (points ? required + card_reserved > Game.Score : required > Game.CoinCredits))
+        goto finish;
+    if (!Game.RoundActive)
+    {
+        Game.RoundActive = 1U;
+        Game.RoundMode = mode;
+        Game.FeePending = mode;
+        Game_QueueMusic(GAME_MUSIC_START);
+    }
+    if (!pending)
+    {
+        Game.BallUnitCost = mode && !Game.FeePending ? 0U : cost;
+        Game.BallPayPoints = points;
+    }
+    Hoolle_Output(&Motor_Hoolle1, 1U);
+finish:
     __set_PRIMASK(primask);
-    /* 后台内只解除故障，不运行电机；退出后台后再恢复保留的未出任务。 */
-    if (Game_CanRun())
-        Ctrl_ResumeOutputs();
 }
 
 void Mesg_Task(void)
 {
-    uint32_t now = HAL_GetTick();
+    uint32_t now = HAL_GetTick(), display;
     Game_CollectFeedback();
-    if (Game.FullFlash && (uint32_t)(now - Game.FullFlashTick) >= 3000U)
+    if (Game.Failing && (uint32_t)(now - Game.FailTick) >= 1000U)
+    {
+        HAL_GPIO_WritePin(LockOutput_GPIO_Port, LockOutput_Pin, GPIO_PIN_RESET);
+        ValveActive = Game.Failing = 0U;
+        MusicPending &= (uint8_t)~GAME_MUSIC_BIT(GAME_MUSIC_FAIL);
+        Comm_ClearGameInput();
+        if (Game_CanRun()) Ctrl_ResumeOutputs();
+    }
+    if (Game.FullFlash && (uint32_t)(now - Game.FullFlashTick) >= GAME_SUCCESS_TIME)
     {
         Game.FullFlash = 0U;
-        Game.GridMask = 0U;
+        MusicPending &= (uint8_t)~GAME_MUSIC_BIT(GAME_MUSIC_FULL);
+        Game.GridMask = Game.HitMask = 0U;
         Game.LineCount = 0U;
         Light_SetGrid(0U, 0U, 0U);
+        Comm_ClearGameInput();
+        if (Game_CanRun()) Ctrl_ResumeOutputs();
     }
-    if (Game_CanRun())
+    if (Game_Persist() == 0 && Game_CanPlay())
     {
-        /* 中文注释：待出数量预留余额，只有PE3确认成功后实际扣珠。 */
         while (Button1Pending != 0U)
         {
             Button1Pending--;
-            uint32_t primask = __get_PRIMASK();
-            __disable_irq();
-            /* 反馈中断可能刚发生而尚未结算，也必须计入余额预留，防止多出一珠。 */
-            if ((uint32_t)Motor_Hoolle1.Hoolle_num + BallOutputPendingCount < Game.BallCredits && Motor_Hoolle1.Hoolle_num < UINT16_MAX)
-                Hoolle_Output(&Motor_Hoolle1, 1U);
-            __set_PRIMASK(primask);
+            Game_RequestBall();
         }
         if (RedeemPending)
         {
+            uint64_t reserved = Game.BallPayPoints ? Game_BallReserved() : 0U;
+            uint32_t available = reserved <= Game.Score ? Game.Score - (uint32_t)reserved : 0U;
             RedeemPending = 0U;
-            if (Card.Card_num == 0U && Game.CardUnitPoints == 0U && Setting.PointsPerCard != 0U)
+            if (!Card.Card_num && !Game.CardUnitPoints && Setting.PointsPerCard)
             {
-                uint32_t cards = Game.Score / Setting.PointsPerCard;
-                if (cards > UINT16_MAX)
-                    cards = UINT16_MAX;
-                if (cards != 0U)
+                uint32_t cards = available / Setting.PointsPerCard;
+                if (cards > UINT16_MAX) cards = UINT16_MAX;
+                if (cards)
                 {
                     Game.CardUnitPoints = Setting.PointsPerCard;
                     Card_Output(&Card, (uint16_t)cards);
@@ -274,14 +438,15 @@ void Mesg_Task(void)
             }
         }
     }
-    Scene = Game.MenuActive ? SettingScene : (Game.BallCredits != 0U && Game.Faults == 0U ? PlayingScene : IdleScene);
-    DigitalTube_SetTotals(Game.Score, Setting.PointsPerCard != 0U ? Game.Score / Setting.PointsPerCard : 0U);
-    /* 中文注释：控台只显示可出珠余额；定期重刷以覆盖控台晚启动的情形。 */
-    if (Game.BallCredits != LastCreditDisplay || (uint32_t)(now - LastCreditDisplayTick) >= 1000U)
+    Scene = Game.MenuActive ? SettingScene : (Game.RoundActive && !Game.Faults ? PlayingScene : IdleScene);
+    DigitalTube_SetTotals(Game.Score, Setting.PointsPerCard ? Game.Score / Setting.PointsPerCard : 0U);
+    display = Setting.CoinScoreLink ? Game.Score : Game.CoinCredits;
+    if (display != LastCreditDisplay || LastDisplayMode != Setting.CoinScoreLink || (uint32_t)(now - LastCreditDisplayTick) >= 1000U)
     {
-        Comm_SendMesg_FillData(&Tx3, Board_to_Ctrl, CTRL_CMD_DIGITAL_TUBE, Game.BallCredits, 0U);
-        LastCreditDisplay = Game.BallCredits;
+        Comm_SendMesg_FillData(&Tx3, Board_to_Ctrl, CTRL_CMD_DIGITAL_TUBE, display, 0U);
+        LastCreditDisplay = display;
         LastCreditDisplayTick = now;
+        LastDisplayMode = (uint8_t)Setting.CoinScoreLink;
     }
     Game_MusicTask();
 }

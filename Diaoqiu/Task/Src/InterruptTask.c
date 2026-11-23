@@ -3,6 +3,7 @@
 #include "MesgTask.h"
 #include "MainTask.h"
 #include "CommTask.h"
+#include "FlashTask.h"
 #include "port_event.h"
 #include "tim.h"
 #include "usart.h"
@@ -35,7 +36,9 @@ void HoolleInput_FilterInit(void)
 
 void HoolleInput_Scan1ms(void)
 {
-    uint8_t CurrentState =
+    uint8_t CurrentState;
+    Game_Timer1ms();
+    CurrentState =
         HAL_GPIO_ReadPin(HoolleInput_GPIO_Port, HoolleInput_Pin) == GPIO_PIN_SET ? 1U : 0U;
 
     if (CurrentState == HoolleInputRawState)
@@ -53,7 +56,7 @@ void HoolleInput_Scan1ms(void)
         HoolleInputStableState != HoolleInputRawState)
     {
         HoolleInputStableState = HoolleInputRawState;
-        if (HoolleInputStableState == 0U && HoolleInputPendingCount < 0xFFFFU)
+        if (Setting.InputMode == 1U && HoolleInputStableState == 0U && HoolleInputPendingCount < 0xFFFFU)
             HoolleInputPendingCount++;
     }
 }
@@ -106,7 +109,9 @@ static void CoinInput_IRQ(void)
     static uint8_t Seen;
     static uint32_t LastTick;
     uint32_t now = HAL_GetTick();
-    /* 中文注释：沿用PE6上升沿与50ms去抖，只累计音效事件，由主循环处理。 */
+    /* 中文注释：PE6只在投币模式记数；另一输入PE2由1ms滤波按模式屏蔽。 */
+    if (Setting.InputMode != 0U)
+        return;
     if (Seen && (uint32_t)(now - LastTick) < 50U)
         return;
     Seen = 1U;

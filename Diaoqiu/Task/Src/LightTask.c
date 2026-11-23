@@ -74,7 +74,9 @@ void LightTask(void)
 {
     static uint32_t LastRefresh;
     uint32_t now = HAL_GetTick();
-    uint8_t strip, led, red, white;
+    static const uint8_t Palette[6][3] = {{255U,0U,0U},{255U,100U,0U},{0U,255U,0U},
+        {0U,180U,255U},{40U,0U,255U},{255U,0U,180U}};
+    uint8_t strip, led, red, white, r, g, b;
     uint8_t value = (uint8_t)(255U * Setting.Board_Lightness / 10U);
     if (DmaBusy[0] || DmaBusy[1])
         return;
@@ -95,14 +97,29 @@ void LightTask(void)
             /* RGB1=LD1~36；RGB2前24颗是六档指示，后25颗是白色背景。 */
             white = strip && led >= 24U;
             red = strip ? (led < 24U && led / 4U < LineCount) : ((GridMask & (1U << (led / 4U))) != 0U);
+            r = (red || white) ? value : 0U;
+            g = b = white ? value : 0U;
             if (FullFlash)
             {
-                white = 0U;
-                red = ((uint32_t)(now - FlashTick) / 100U) % 2U == 0U;
+                uint32_t elapsed = now - FlashTick;
+                uint16_t phase = (uint16_t)(elapsed % 800U);
+                uint16_t level = phase <= 400U ? phase : 800U - phase;
+                uint8_t stage = elapsed / 800U < 9U ? (uint8_t)(elapsed / 800U) : 8U;
+                uint8_t color = (uint8_t)((stage + (strip ? 0U : led / 4U)) % 6U);
+                /* 中文注释：1~9图案每800ms依次加入，已加入图案和其余灯随彩虹渐亮渐灭。
+                 * 9档共7.2秒，期间游戏锁定；完成后由游戏任务恢复背景白灯。 */
+                if (!strip && led / 4U > stage)
+                    r = g = b = 0U;
+                else
+                {
+                    r = (uint8_t)((uint32_t)Palette[color][0] * value * level / (255U * 400U));
+                    g = (uint8_t)((uint32_t)Palette[color][1] * value * level / (255U * 400U));
+                    b = (uint8_t)((uint32_t)Palette[color][2] * value * level / (255U * 400U));
+                }
             }
-            offset = EncodeByte(strip, offset, white ? value : 0U);
-            offset = EncodeByte(strip, offset, (red || white) ? value : 0U);
-            offset = EncodeByte(strip, offset, white ? value : 0U);
+            offset = EncodeByte(strip, offset, g);
+            offset = EncodeByte(strip, offset, r);
+            offset = EncodeByte(strip, offset, b);
         }
         HAL_TIM_PWM_Stop(&htim3, strip ? TIM_CHANNEL_2 : TIM_CHANNEL_1);
         __HAL_TIM_SET_COMPARE(&htim3, strip ? TIM_CHANNEL_2 : TIM_CHANNEL_1, 0U);

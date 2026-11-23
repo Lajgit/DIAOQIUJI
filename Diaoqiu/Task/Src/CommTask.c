@@ -567,6 +567,18 @@ void CommInit(void)
     Communicate_Tx_Init(&Tx3, Tx_init);
 }
 
+void Comm_ClearGameInput(void)
+{
+    uint32_t primask = __get_PRIMASK();
+    __disable_irq();
+    /* 中文注释：禁玩结束时丢弃期间残留的输入/半帧，不把旧按键或微动带入新局。 */
+    if (Rx1.Handle.RingBuf.f_Clear) Rx1.Handle.RingBuf.f_Clear(&Rx1.Handle.RingBuf);
+    if (Rx3.Handle.RingBuf.f_Clear) Rx3.Handle.RingBuf.f_Clear(&Rx3.Handle.RingBuf);
+    Rx1.State = Rx3.State = WAIT_HEAD;
+    Rx1.Queue.Index = Rx3.Queue.Index = 0U;
+    __set_PRIMASK(primask);
+}
+
 void CommTask(void)
 {
     Rx1.Receive(&Rx1, &Receive1_mesg, 14);

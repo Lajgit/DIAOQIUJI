@@ -76,6 +76,9 @@ void Ctrl_PauseOutputs(void)
 void Ctrl_ResumeOutputs(void)
 {
     OutputsPaused = 0U;
+    /* 转轮禁玩期间只开放转轮光眼，其他执行器继续保持暂停。 */
+    if (Game.WheelBusy)
+        return;
     Motor_Hoolle1.Motor.state = Motor_Hoolle1.Hoolle_num ? DEVICE_STATE_START : DEVICE_STATE_IDLE;
     Card.Switch.state = Card.Card_num ? DEVICE_STATE_START : DEVICE_STATE_IDLE;
 }
@@ -137,8 +140,9 @@ static void Ctrl_Wheel(void)
     {
         if (Game.WheelPending)
             Game.WheelPending--;
-        Game_CharacterHit(WheelCharacter);
-        Comm_SendMesg_FillData(&Tx1, Board_to_Ball, BALL_CMD_RGB_MODE, (uint32_t)WheelCharacter << 8, 0U);
+        uint8_t result = WheelCharacter;
+        Game_WheelHit(result);
+        Comm_SendMesg_FillData(&Tx1, Board_to_Ball, BALL_CMD_RGB_MODE, (uint32_t)result << 8, 0U);
         WheelCharacter = 0U;
         WheelState = WHEEL_IDLE;
     }
@@ -147,7 +151,8 @@ static void Ctrl_Wheel(void)
         Game_SetFault(GAME_FAULT_WHEEL);
         return;
     }
-    if (WheelState == WHEEL_IDLE && Game.WheelPending && !Game.FullFlash)
+    if (WheelState == WHEEL_IDLE && Game.WheelPending && !Game.FullFlash &&
+        (uint32_t)(HAL_GetTick() - Game.WheelTick) >= 1000U)
     {
         if (WheelCharacter == 0U)
         {
@@ -157,7 +162,23 @@ static void Ctrl_Wheel(void)
             RandomState ^= RandomState << 5;
             if (RandomState == 0U)
                 RandomState = 0x13579BDFU;
-            WheelCharacter = (uint8_t)(RandomState % 9U + 1U);
+            uint8_t count = 0U, choice, character;
+            for (character = 1U; character <= 9U; character++)
+                if ((Game.GridMask & (1U << (character - 1U))) == 0U) count++;
+            if (count == 0U)
+            {
+                Game.WheelPending = Game.WheelBusy = 0U;
+                Ctrl_ResumeOutputs();
+                return;
+            }
+            /* 中文注释：只从当前未点亮人物中随机选一个，不因转轮重复而判负。 */
+            choice = (uint8_t)(RandomState % count);
+            for (character = 1U; character <= 9U; character++)
+                if ((Game.GridMask & (1U << (character - 1U))) == 0U && choice-- == 0U)
+                {
+                    WheelCharacter = character;
+                    break;
+                }
         }
         WheelTarget = (uint8_t)((WheelCharacter - 1U) * 4U + 2U);
         WheelEdges = 0U;
@@ -227,6 +248,11 @@ void CtrlTask(void)
     uint32_t primask;
     if (!Game_CanRun())
         return;
+    if (Game.WheelBusy)
+    {
+        Ctrl_Wheel();
+        return;
+    }
     /* 出珠/出卡启动与超时转换是短临界段，避免最后一份反馈到达时又启动电机。 */
     primask = __get_PRIMASK();
     __disable_irq();
@@ -243,13 +269,13 @@ void CtrlTask(void)
     Ctrl_Wheel();
     if (!Game_CanRun())
         return;
-    /* PE4不参与摆动控制，余额归零立即停机。 */
-    if (Game.BallCredits && Motor_Hoolle2.Motor.state == DEVICE_STATE_IDLE)
+    /* PE4不参与摆动控制；新玩法按本局是否进行控制摆动，而非按余额判结束。 */
+    if (Game.RoundActive && Motor_Hoolle2.Motor.state == DEVICE_STATE_IDLE)
     {
         Motor_Hoolle2.Motor.SetSpeed(&Motor_Hoolle2.Motor, HoolleMotor2_Speed, HoolleMotor_Dir);
         Motor_Hoolle2.Motor.state = DEVICE_STATE_BUSY;
     }
-    else if (!Game.BallCredits && Motor_Hoolle2.Motor.state != DEVICE_STATE_IDLE)
+    else if (!Game.RoundActive && Motor_Hoolle2.Motor.state != DEVICE_STATE_IDLE)
     {
         Motor_Hoolle2.Motor.Stop(&Motor_Hoolle2.Motor);
         Motor_Hoolle2.Motor.state = DEVICE_STATE_IDLE;

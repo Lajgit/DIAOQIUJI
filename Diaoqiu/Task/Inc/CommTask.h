@@ -134,6 +134,7 @@ void Resend_Task(void);
 void MesgDeal_Task(void);
 void CommInit(void);
 void CommTask(void);
+void Comm_ClearGameInput(void);
 
 /* 中文注释：YC686B独立语音驱动；首轮曲号与游戏事件由MesgTask绑定。 */
 #define YC686_LINK_OK 0U
