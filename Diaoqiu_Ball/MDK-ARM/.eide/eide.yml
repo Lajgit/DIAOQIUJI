@@ -78,7 +78,6 @@ virtualFolder:
     - name: Task
       files:
         - path: ../Task/Src/CommTask.c
-        - path: ../Task/Src/DigitalTubeTask.c
         - path: ../Task/Src/FlashTask.c
         - path: ../Task/Src/InterruptTask.c
         - path: ../Task/Src/KeyTask.c
