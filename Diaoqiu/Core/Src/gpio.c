@@ -57,7 +57,8 @@ void MX_GPIO_Init(void)
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOC, CardOutput_Pin | CardOutput2_Pin, GPIO_PIN_RESET);
-  HAL_GPIO_WritePin(GPIOB, LED1_Pin | LED2_Pin, GPIO_PIN_RESET);
+  /* 中文注释：PB3/LED1、PB4/LED2默认输出高电平，开启两组LED负载。 */
+  HAL_GPIO_WritePin(GPIOB, LED1_Pin | LED2_Pin, GPIO_PIN_SET);
   HAL_GPIO_WritePin(GPIOD, Motor3_IN1_Pin | Motor3_IN2_Pin, GPIO_PIN_RESET);
   /* 中文注释：尚未启用RGB驱动，先将两路数据保持低电平。 */
   HAL_GPIO_WritePin(GPIOC, RGB1_Pin | RGB2_Pin, GPIO_PIN_RESET);
