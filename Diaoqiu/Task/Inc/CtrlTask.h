@@ -30,4 +30,6 @@ void Ctrl_ResetFaults(void);
 uint8_t Ctrl_OutputsIdle(void);
 void Ctrl_WheelAngleIRQ(void);
 void Ctrl_WheelResetIRQ(void);
+uint8_t Ctrl_WheelTest(uint8_t home);
+uint8_t Ctrl_WheelTestBusy(void);
 #endif

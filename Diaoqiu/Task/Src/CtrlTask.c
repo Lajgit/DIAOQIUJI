@@ -16,6 +16,7 @@ static volatile uint8_t WheelEdges;
 static volatile uint32_t WheelLastEdge;
 static uint8_t WheelCharacter;
 static uint8_t WheelTarget;
+static volatile uint8_t WheelTest; /* 0正常游戏，1后台归零，2后台转一个人物档位 */
 static uint32_t RandomState = 0x13579BDFU;
 extern Tx_HandleTypeDef Tx1;
 
@@ -30,6 +31,7 @@ void Device_Init(void)
     Motor_Hoolle1.RetryCount = 0U;
     Card.Card_num = 0U;
     WheelState = WHEEL_IDLE;
+    WheelTest = 0U;
     DeviceReady = 1U;
 }
 
@@ -68,6 +70,11 @@ void Ctrl_PauseOutputs(void)
     Card.Switch.off(&Card.Switch);
     Card.Switch.state = DEVICE_STATE_PAUSE;
     WheelMotor.Stop(&WheelMotor);
+    if (WheelTest)
+    {
+        WheelTest = 0U;
+        WheelState = WHEEL_IDLE;
+    }
     /* 中断计数暂停；保留中奖人物，恢复时重新找零，避免把惯性位移当成准确位置。 */
     if (WheelState == WHEEL_HOME || WheelState == WHEEL_MOVE)
         WheelState = WHEEL_IDLE;
@@ -75,6 +82,8 @@ void Ctrl_PauseOutputs(void)
 
 void Ctrl_ResumeOutputs(void)
 {
+    if (WheelTest)
+        Ctrl_PauseOutputs();
     OutputsPaused = 0U;
     /* 转轮禁玩期间只开放转轮光眼，其他执行器继续保持暂停。 */
     if (Game.WheelBusy)
@@ -85,6 +94,8 @@ void Ctrl_ResumeOutputs(void)
 
 void Ctrl_ResetFaults(void)
 {
+    if (WheelTest)
+        Ctrl_PauseOutputs();
     Motor_Hoolle1.RetryCount = 0U;
     if (WheelState != WHEEL_DONE)
         WheelState = WHEEL_IDLE;
@@ -109,7 +120,42 @@ void Ctrl_WheelResetIRQ(void)
         return;
     WheelEdges = 0U;
     WheelLastEdge = HAL_GetTick();
-    WheelState = WHEEL_MOVE;
+    if (WheelTest == 1U)
+    {
+        /* 中文注释：后台归零在RESET下降沿直接制动，不再走游戏人物中心偏移。 */
+        WheelMotor.Stop(&WheelMotor);
+        WheelState = WHEEL_DONE;
+    }
+    else
+        WheelState = WHEEL_MOVE;
+}
+
+uint8_t Ctrl_WheelTestBusy(void)
+{
+    return WheelTest != 0U;
+}
+
+uint8_t Ctrl_WheelTest(uint8_t home)
+{
+    uint32_t primask = __get_PRIMASK();
+    __disable_irq();
+    if (!DeviceReady || !Game.MenuActive || Game.Faults || Game.Failing || Game.FullFlash ||
+        WheelTest || WheelState == WHEEL_FAULT)
+    {
+        __set_PRIMASK(primask);
+        return 0U;
+    }
+    /* 中文注释：仅后台可手动测试；其他执行器继续暂停，游戏人物/奖励任务不改。
+     * 沿用当前方向和后台轮速；转一格指一个人物档位，即4个ANGLE下降沿。 */
+    WheelTest = home ? 1U : 2U;
+    WheelEdges = 0U;
+    WheelTarget = 4U;
+    WheelLastEdge = HAL_GetTick();
+    WheelState = home ? WHEEL_HOME : WHEEL_MOVE;
+    OutputsPaused = 0U;
+    WheelMotor.SetSpeed(&WheelMotor, (uint16_t)Setting.WheelSpeed, HoolleMotor_Dir);
+    __set_PRIMASK(primask);
+    return 1U;
 }
 
 void Ctrl_WheelAngleIRQ(void)
@@ -136,6 +182,14 @@ void Ctrl_WheelAngleIRQ(void)
 
 static void Ctrl_Wheel(void)
 {
+    if (WheelTest && WheelState == WHEEL_DONE)
+    {
+        /* 测试完成只停车并恢复后台暂停，不调用游戏中奖或发送人物亮灯。 */
+        WheelTest = 0U;
+        WheelState = WHEEL_IDLE;
+        OutputsPaused = 1U;
+        return;
+    }
     if (WheelState == WHEEL_DONE && !Game.FullFlash)
     {
         if (Game.WheelPending)
@@ -246,6 +300,14 @@ static void Ctrl_Card(void)
 void CtrlTask(void)
 {
     uint32_t primask;
+    if (WheelTest)
+    {
+        if (!Game.MenuActive || Game.Faults || Game.Failing || Game.FullFlash)
+            Ctrl_PauseOutputs();
+        else
+            Ctrl_Wheel();
+        return;
+    }
     if (!Game_CanRun())
         return;
     if (Game.WheelBusy)
