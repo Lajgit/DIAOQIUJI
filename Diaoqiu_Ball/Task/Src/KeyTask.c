@@ -4,7 +4,9 @@
 #include "main.h"
 
 #define BALL_EYE_COUNT 11U
-#define BALL_EYE_SCAN_MS 3U
+#define BALL_EYE_SCAN_MS 1U
+#define BALL_EYE_TRIGGER_MS 10U
+#define BALL_EYE_RELEASE_MS 100U
 
 /*
  * 中文注释：人物1~9依次对应U1、U3~U10；CN1/CN2使用上报编号10/11。
@@ -40,17 +42,25 @@ static uint16_t BallEye_Pin[BALL_EYE_COUNT] = {
 };
 
 static GPIO_PinState BallEye_LastState[BALL_EYE_COUNT];
+static uint32_t BallEye_StateTick[BALL_EYE_COUNT];
+static uint8_t BallEye_Armed[BALL_EYE_COUNT];
+static uint32_t LastScanTick;
 extern Tx_HandleTypeDef Tx;
 
 void KeyAll_Init(void)
 {
+    LastScanTick = HAL_GetTick();
     for (uint8_t i = 0U; i < BALL_EYE_COUNT; i++)
+    {
         BallEye_LastState[i] = HAL_GPIO_ReadPin(BallEye_Port[i], BallEye_Pin[i]);
+        BallEye_StateTick[i] = LastScanTick;
+        /* 上电已触发的输入先等完整释放，避免初始化后产生一次伪命中。 */
+        BallEye_Armed[i] = BallEye_LastState[i] == GPIO_PIN_RESET;
+    }
 }
 
 void Key_Task(void)
 {
-    static uint32_t LastScanTick = 0U;
     uint32_t CurrentTick = HAL_GetTick();
 
     if ((uint32_t)(CurrentTick - LastScanTick) < BALL_EYE_SCAN_MS)
@@ -62,13 +72,23 @@ void Key_Task(void)
     {
         GPIO_PinState CurrentState = HAL_GPIO_ReadPin(BallEye_Port[i], BallEye_Pin[i]);
 
-        /*
-         * 中文注释：当前光眼电路为光敏三极管集电极上拉。
-         * 正常收到红外时三极管导通，GPIO为低；钢珠遮挡后GPIO变高。
-         * 因此仅在低→高边沿上报一次，避免钢珠停留遮挡时重复发送。
-         */
-        if (BallEye_LastState[i] == GPIO_PIN_RESET && CurrentState == GPIO_PIN_SET)
+        if (CurrentState != BallEye_LastState[i])
         {
+            BallEye_LastState[i] = CurrentState;
+            BallEye_StateTick[i] = CurrentTick;
+        }
+
+        /* 中文注释：沿用原输入高电平触发；九路人物和CN1/CN2分别独立消抖。
+         * 触发连续稳定10ms才上报一次，之后低电平释放连续稳定100ms才重新允许触发。
+         * 任一电平变化都重新计时，长时间按住或释放期间抖动不会重复上报。 */
+        if (CurrentState == GPIO_PIN_RESET)
+        {
+            if (!BallEye_Armed[i] && (uint32_t)(CurrentTick - BallEye_StateTick[i]) >= BALL_EYE_RELEASE_MS)
+                BallEye_Armed[i] = 1U;
+        }
+        else if (BallEye_Armed[i] && (uint32_t)(CurrentTick - BallEye_StateTick[i]) >= BALL_EYE_TRIGGER_MS)
+        {
+            BallEye_Armed[i] = 0U;
             if (i < 9U)
                 BallLight_Hit(i + 1U);
             Comm_SendMesg_FillData(
@@ -78,7 +98,5 @@ void Key_Task(void)
                 (uint32_t)(i + 1U),
                 BALL_EYE_TRIGGER);
         }
-
-        BallEye_LastState[i] = CurrentState;
     }
 }
