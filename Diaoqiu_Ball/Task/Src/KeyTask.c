@@ -55,7 +55,7 @@ void KeyAll_Init(void)
         BallEye_LastState[i] = HAL_GPIO_ReadPin(BallEye_Port[i], BallEye_Pin[i]);
         BallEye_StateTick[i] = LastScanTick;
         /* 上电已触发的输入先等完整释放，避免初始化后产生一次伪命中。 */
-        BallEye_Armed[i] = BallEye_LastState[i] == GPIO_PIN_RESET;
+        BallEye_Armed[i] = BallEye_LastState[i] == GPIO_PIN_SET;
     }
 }
 
@@ -78,10 +78,10 @@ void Key_Task(void)
             BallEye_StateTick[i] = CurrentTick;
         }
 
-        /* 中文注释：沿用原输入高电平触发；九路人物和CN1/CN2分别独立消抖。
-         * 触发连续稳定10ms才上报一次，之后低电平释放连续稳定1000ms才重新允许触发。
+        /* 中文注释：用户已确认11路微动均为低电平触发，各路分别独立消抖。
+         * 低电平触发连续稳定10ms才上报一次，之后高电平释放连续稳定1000ms才重新允许触发。
          * 任一电平变化都重新计时，长时间按住或释放期间抖动不会重复上报。 */
-        if (CurrentState == GPIO_PIN_RESET)
+        if (CurrentState == GPIO_PIN_SET)
         {
             if (!BallEye_Armed[i] && (uint32_t)(CurrentTick - BallEye_StateTick[i]) >= BALL_EYE_RELEASE_MS)
                 BallEye_Armed[i] = 1U;
