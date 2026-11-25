@@ -231,6 +231,13 @@ void Game_CharacterHit(uint8_t character)
     Game_LightCharacter(character);
 }
 
+void Game_CharacterHeld(uint8_t character)
+{
+    /* 中文注释：人物微动持续低700ms直接判负，不补普通命中/计分；转轮禁玩期间也处理卡住。 */
+    if (Game_CanRun() && Game.RoundActive && character >= 1U && character <= 9U)
+        Game_EndRound(0U);
+}
+
 void Game_WheelHit(uint8_t character)
 {
     Game.WheelBusy = 0U;

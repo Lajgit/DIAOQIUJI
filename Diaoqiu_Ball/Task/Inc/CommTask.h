@@ -19,6 +19,7 @@
 #define BALL_REPORT_EYE 0x01U
 
 #define BALL_EYE_TRIGGER 0x01U
+#define BALL_EYE_HOLD 0x02U /* 中文注释：沿用长按事件值，九路人物持续低700ms判负。 */
 
 typedef struct
 {

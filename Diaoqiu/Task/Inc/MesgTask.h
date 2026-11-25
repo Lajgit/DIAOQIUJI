@@ -38,6 +38,7 @@ extern Game_State_t Game;
 void Game_Init(void);
 void Game_CollectFeedback(void);
 void Game_CharacterHit(uint8_t character);
+void Game_CharacterHeld(uint8_t character);
 void Game_WheelHit(uint8_t character);
 void Game_WheelTrigger(void);
 void Game_ControlButton(uint8_t button, uint8_t event);

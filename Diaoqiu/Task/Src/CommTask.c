@@ -395,11 +395,16 @@ static bool USART_ReceiveMesg_Verify(void *self, void *mesg)
 static void USART1_Deal(void *Rx_mesg)
 {
     Mesg_TypeDef *mesg = (Mesg_TypeDef *)Rx_mesg;
-    if (mesg->Code1 != Ball_to_Board || mesg->Code2 != BALL_REPORT_EYE || mesg->ExpandCode != KEY_EVENT_SHORT)
+    if (mesg->Code1 != Ball_to_Board || mesg->Code2 != BALL_REPORT_EYE)
         return;
     if (mesg->Data4 >= 1U && mesg->Data4 <= 9U)
-        Game_CharacterHit(mesg->Data4);
-    else if (mesg->Data4 == 10U || mesg->Data4 == 11U)
+    {
+        if (mesg->ExpandCode == KEY_EVENT_SHORT)
+            Game_CharacterHit(mesg->Data4);
+        else if (mesg->ExpandCode == KEY_EVENT_LONG)
+            Game_CharacterHeld(mesg->Data4);
+    }
+    else if (mesg->ExpandCode == KEY_EVENT_SHORT && (mesg->Data4 == 10U || mesg->Data4 == 11U))
         Game_WheelTrigger();
 }
 
