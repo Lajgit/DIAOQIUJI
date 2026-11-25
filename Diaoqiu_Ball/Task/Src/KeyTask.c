@@ -6,7 +6,7 @@
 #define BALL_EYE_COUNT 11U
 #define BALL_EYE_SCAN_MS 1U
 #define BALL_EYE_TRIGGER_MS 10U
-#define BALL_EYE_RELEASE_MS 100U
+#define BALL_EYE_RELEASE_MS 1000U
 
 /*
  * 中文注释：人物1~9依次对应U1、U3~U10；CN1/CN2使用上报编号10/11。
@@ -79,7 +79,7 @@ void Key_Task(void)
         }
 
         /* 中文注释：沿用原输入高电平触发；九路人物和CN1/CN2分别独立消抖。
-         * 触发连续稳定10ms才上报一次，之后低电平释放连续稳定100ms才重新允许触发。
+         * 触发连续稳定10ms才上报一次，之后低电平释放连续稳定1000ms才重新允许触发。
          * 任一电平变化都重新计时，长时间按住或释放期间抖动不会重复上报。 */
         if (CurrentState == GPIO_PIN_RESET)
         {

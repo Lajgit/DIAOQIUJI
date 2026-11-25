@@ -5,7 +5,7 @@
 #define CardMotorTimeout_time 3000U
 #define HoolleMotorReverse_Time 300U
 #define HoolleMotorRetry_Times 3U
-#define HoolleMotor_Speed 80U
+#define HoolleMotor_Speed 100U /* 中文注释：出珠电机速度满档，摆动及转轮速度独立。 */
 #define HoolleMotor2_Speed 80U
 #define HoolleMotor_Dir 0U
 
