@@ -1,10 +1,11 @@
 #ifndef __CTRLTASK_H__
 #define __CTRLTASK_H__
 #include "port_device.h"
-#define HoolleMotorTimeout_time 3000U
+#define HoolleMotorTimeout_time 5000U /* 中文注释：出珠正转5秒未确认通过才反转重试。 */
+#define WheelMotorTimeout_time 3000U /* 转轮无光眼沿超时保持3秒，不跟随出珠参数。 */
 #define CardMotorTimeout_time 3000U
 #define HoolleMotorReverse_Time 300U
-#define HoolleMotorRetry_Times 3U
+#define HoolleMotorRetry_Times 2U
 #define HoolleMotor_Speed 100U /* 中文注释：出珠电机速度满档，摆动及转轮速度独立。 */
 #define HoolleMotor2_Speed 80U
 #define HoolleMotor_Dir 0U

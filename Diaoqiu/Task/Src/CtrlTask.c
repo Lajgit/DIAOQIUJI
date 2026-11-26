@@ -243,7 +243,7 @@ static void Ctrl_Wheel(void)
         WheelMotor.SetSpeed(&WheelMotor, (uint16_t)Setting.WheelSpeed, HoolleMotor_Dir);
     }
     if ((WheelState == WHEEL_HOME || WheelState == WHEEL_MOVE) &&
-        (uint32_t)(HAL_GetTick() - WheelLastEdge) >= HoolleMotorTimeout_time)
+        (uint32_t)(HAL_GetTick() - WheelLastEdge) >= WheelMotorTimeout_time)
     {
         WheelMotor.Stop(&WheelMotor);
         WheelState = WHEEL_FAULT;
@@ -272,7 +272,7 @@ static void Ctrl_Ball(void)
             Game_SetFault(GAME_FAULT_BALL);
             return;
         }
-        /* 堵珠先反转300ms，最多重试三次；未出数量一直保留给后台决定。 */
+        /* 中文注释：正转5秒未确认通过则反转300ms，最多重试两次；未出数量保留给后台。 */
         HoolleOutput_FilterReset();
         motor->SetSpeed(motor, HoolleMotor_Speed, !HoolleMotor_Dir);
         motor->state = DEVICE_STATE_TIMEOUT;
