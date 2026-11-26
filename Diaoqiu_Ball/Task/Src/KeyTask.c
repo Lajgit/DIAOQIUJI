@@ -97,8 +97,7 @@ void Key_Task(void)
             {
                 BallEye_HitSeen[i] = 1U;
                 BallEye_HitTick[i] = CurrentTick;
-                if (i < 9U)
-                    BallLight_Hit(i + 1U);
+                /* 灯光由上球盘确认有效人物命中后下发，待机/禁玩输入不能本地点亮。 */
                 Comm_SendMesg_FillData(&Tx, Ball_to_Board, BALL_REPORT_EYE,
                     (uint32_t)(i + 1U), BALL_EYE_TRIGGER);
             }

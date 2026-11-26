@@ -9,6 +9,7 @@
 #include "string.h"
 
 extern Tx_HandleTypeDef Tx3;
+extern Tx_HandleTypeDef Tx1;
 extern Motor_Hoolle Motor_Hoolle1;
 extern Motor_Card Card;
 extern Scene_t Scene;
@@ -144,6 +145,14 @@ static int Game_Persist(void)
     return 1;
 }
 
+static void Game_ClearLowerLights(void)
+{
+    uint8_t character;
+    /* 中文注释：逐组沿用原模式1关闭命令，不增加帧类型或猜测新的广播编号。 */
+    for (character = 1U; character <= 9U; character++)
+        Comm_SendMesg_FillData(&Tx1, Board_to_Ball, BALL_CMD_RGB_MODE, (uint32_t)character << 8, 1U);
+}
+
 void Game_Init(void)
 {
     memset(&Game, 0, sizeof(Game));
@@ -155,6 +164,7 @@ void Game_Init(void)
     LastCreditDisplayTick = HAL_GetTick();
     HAL_GPIO_WritePin(LockOutput_GPIO_Port, LockOutput_Pin, GPIO_PIN_RESET);
     Light_SetGrid(0U, 0U, 0U);
+    Game_ClearLowerLights();
     DigitalTube_SetTotals(Game.Score, Setting.PointsPerCard ? Game.Score / Setting.PointsPerCard : 0U);
 }
 
@@ -188,6 +198,8 @@ static void Game_EndRound(uint8_t success)
     }
     __set_PRIMASK(primask);
     Light_SetGrid(Game.GridMask, Game.LineCount, Game.FullFlash);
+    if (!success)
+        Game_ClearLowerLights();
     Game_QueueMusic(success ? GAME_MUSIC_FULL : GAME_MUSIC_FAIL);
 }
 
@@ -199,6 +211,8 @@ static void Game_LightCharacter(uint8_t character)
     if ((Game.GridMask & bit) != 0U)
         return;
     Game.GridMask |= bit;
+    /* 首次有效点亮统一同步下板；重复人物不重新闪，转轮命中也走同一入口。 */
+    Comm_SendMesg_FillData(&Tx1, Board_to_Ball, BALL_CMD_RGB_MODE, (uint32_t)character << 8, 0U);
     for (i = 0U; i < 6U; i++)
         if ((Game.GridMask & GridLines[i]) == GridLines[i]) count++;
     /* 中文注释：独立累加每个跨过的档位；四线直达六线仍加300+500，整盘1150。 */
@@ -417,6 +431,7 @@ void Mesg_Task(void)
         Game.GridMask = Game.HitMask = 0U;
         Game.LineCount = 0U;
         Light_SetGrid(0U, 0U, 0U);
+        Game_ClearLowerLights();
         Comm_ClearGameInput();
         if (Game_CanRun()) Ctrl_ResumeOutputs();
     }

@@ -198,7 +198,6 @@ static void Ctrl_Wheel(void)
             Game.WheelPending--;
         uint8_t result = WheelCharacter;
         Game_WheelHit(result);
-        Comm_SendMesg_FillData(&Tx1, Board_to_Ball, BALL_CMD_RGB_MODE, (uint32_t)result << 8, 0U);
         WheelCharacter = 0U;
         WheelState = WHEEL_IDLE;
     }
