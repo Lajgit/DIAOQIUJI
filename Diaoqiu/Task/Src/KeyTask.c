@@ -120,8 +120,9 @@ static void Menu_Move(uint8_t down)
     {
         uint32_t min = MenuItem == 6U ? 10U : ((MenuItem == 0U || MenuItem == 1U || MenuItem == 3U || MenuItem == 7U) ? 0U : 1U);
         uint32_t max = (MenuItem == 0U || MenuItem == 1U || MenuItem == 3U || MenuItem == 7U) ? 1U : (MenuItem == 2U ? 99U : (MenuItem == 6U ? 100U : 999U));
-        if (down && MenuDraft > min) MenuDraft--;
-        if (!down && MenuDraft < max) MenuDraft++;
+        /* 中文注释：数值和二选一项目均循环修改；越过最小/最大值回到另一端。 */
+        if (down) MenuDraft = MenuDraft > min ? MenuDraft - 1U : max;
+        else MenuDraft = MenuDraft < max ? MenuDraft + 1U : min;
     }
 }
 
