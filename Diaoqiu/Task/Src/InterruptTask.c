@@ -9,6 +9,7 @@
 #include "usart.h"
 
 #define HOOLLE_INPUT_FILTER_MS 3U
+#define HOOLLE_OUTPUT_FILTER_MS 10U
 
 volatile uint16_t HoolleInputPendingCount = 0U;
 volatile uint16_t CoinInputPendingCount = 0U;
@@ -23,6 +24,77 @@ extern Rx_HandleTypeDef Rx3;
 static uint8_t HoolleInputRawState = 1U;
 static uint8_t HoolleInputStableState = 1U;
 static uint8_t HoolleInputSameCount = 0U;
+static volatile uint8_t HoolleOutputRawState = 1U;
+static volatile uint32_t HoolleOutputStateTick;
+static uint8_t HoolleOutputTracking, HoolleOutputArrived;
+
+void HoolleOutput_FilterReset(void)
+{
+    uint32_t primask = __get_PRIMASK();
+    __disable_irq();
+    HoolleOutputTracking = HoolleOutputArrived = 0U;
+    HoolleOutputRawState = HAL_GPIO_ReadPin(HoolleOutput_1_GPIO_Port, HoolleOutput_1_Pin) == GPIO_PIN_SET;
+    HoolleOutputStateTick = HAL_GetTick();
+    __set_PRIMASK(primask);
+}
+
+static void Hoolle_1_Output_Scan1ms(void)
+{
+    uint8_t current;
+    uint32_t now, primask = __get_PRIMASK();
+    motor_t *motor = &Motor_Hoolle1.Motor;
+    /* 中文注释：与PE3边沿中断共享原始电平/时间，短临界段内完成一次稳定确认。 */
+    __disable_irq();
+    now = HAL_GetTick();
+    if (motor->Stop == NULL || !Motor_Hoolle1.Hoolle_num ||
+        (motor->state != DEVICE_STATE_BUSY && motor->state != DEVICE_STATE_PAUSE && motor->state != DEVICE_STATE_START))
+    {
+        HoolleOutputTracking = HoolleOutputArrived = 0U;
+        goto finish;
+    }
+    if (motor->state != DEVICE_STATE_BUSY && !HoolleOutputArrived)
+    {
+        HoolleOutputTracking = 0U;
+        goto finish;
+    }
+    current = HAL_GPIO_ReadPin(HoolleOutput_1_GPIO_Port, HoolleOutput_1_Pin) == GPIO_PIN_SET;
+    if (!HoolleOutputTracking)
+    {
+        HoolleOutputTracking = 1U;
+        HoolleOutputRawState = current;
+        HoolleOutputStateTick = now;
+    }
+    else if (current != HoolleOutputRawState)
+    {
+        HoolleOutputRawState = current;
+        HoolleOutputStateTick = now;
+    }
+    if ((uint32_t)(now - HoolleOutputStateTick) < HOOLLE_OUTPUT_FILTER_MS)
+        goto finish;
+    if (!current && motor->state == DEVICE_STATE_BUSY)
+    {
+        /* 塑料球压住微动只是到球：低稳定10ms后继续正转，不提前停末颗。 */
+        HoolleOutputArrived = 1U;
+    }
+    else if (current && HoolleOutputArrived)
+    {
+        /* 高稳定10ms才确认球已离开；暂停前已到球的真实通过反馈仍可结算。 */
+        HoolleOutputArrived = 0U;
+        Motor_Hoolle1.Hoolle_num--;
+        Motor_Hoolle1.RetryCount = 0U;
+        motor->ResetRuntime(motor);
+        if (BallOutputPendingCount < UINT16_MAX)
+            BallOutputPendingCount++;
+        if (!Motor_Hoolle1.Hoolle_num)
+        {
+            motor->Stop(motor);
+            motor->state = DEVICE_STATE_STOP;
+            HoolleOutputTracking = 0U;
+        }
+    }
+finish:
+    __set_PRIMASK(primask);
+}
 
 void HoolleInput_FilterInit(void)
 {
@@ -38,6 +110,7 @@ void HoolleInput_Scan1ms(void)
 {
     uint8_t CurrentState;
     Game_Timer1ms();
+    Hoolle_1_Output_Scan1ms();
     CurrentState =
         HAL_GPIO_ReadPin(HoolleInput_GPIO_Port, HoolleInput_Pin) == GPIO_PIN_SET ? 1U : 0U;
 
@@ -63,45 +136,13 @@ void HoolleInput_Scan1ms(void)
 
 static void Hoolle_1_Output_IRQ(void)
 {
-    static uint8_t Armed, LastStopped;
-    static uint32_t LowTick;
-    uint32_t now = HAL_GetTick();
-    if (Motor_Hoolle1.Motor.Stop == NULL)
-        return;
-    if (HAL_GPIO_ReadPin(HoolleOutput_1_GPIO_Port, HoolleOutput_1_Pin) == GPIO_PIN_RESET)
+    uint8_t current = HAL_GPIO_ReadPin(HoolleOutput_1_GPIO_Port, HoolleOutput_1_Pin) == GPIO_PIN_SET;
+    /* 中断只记录真实边沿；低/高稳定确认交给既有1ms扫描，不在边沿立即停机/计数。 */
+    if (current != HoolleOutputRawState)
     {
-        Armed = Motor_Hoolle1.Hoolle_num != 0U && Motor_Hoolle1.Motor.state == DEVICE_STATE_BUSY;
-        LastStopped = 0U;
-        LowTick = now;
-        if (Armed && Motor_Hoolle1.Hoolle_num == 1U)
-        {
-            Motor_Hoolle1.Motor.Stop(&Motor_Hoolle1.Motor);
-            LastStopped = 1U;
-        }
-        return;
+        HoolleOutputRawState = current;
+        HoolleOutputStateTick = HAL_GetTick();
     }
-    if (!Armed)
-        return;
-    Armed = 0U;
-    if (Motor_Hoolle1.Motor.state == DEVICE_STATE_TIMEOUT)
-        return;
-    /* 遮挡至少2ms且释放才确认一颗；反转和空闲噪声不计为出珠。 */
-    if ((uint32_t)(now - LowTick) >= 2U && Motor_Hoolle1.Hoolle_num)
-    {
-        Motor_Hoolle1.Hoolle_num--;
-        Motor_Hoolle1.RetryCount = 0U;
-        Motor_Hoolle1.Motor.ResetRuntime(&Motor_Hoolle1.Motor);
-        if (BallOutputPendingCount < UINT16_MAX)
-            BallOutputPendingCount++;
-        if (!Motor_Hoolle1.Hoolle_num)
-        {
-            Motor_Hoolle1.Motor.Stop(&Motor_Hoolle1.Motor);
-            Motor_Hoolle1.Motor.state = DEVICE_STATE_STOP;
-        }
-    }
-    else if (LastStopped && Motor_Hoolle1.Motor.state == DEVICE_STATE_BUSY)
-        Motor_Hoolle1.Motor.state = DEVICE_STATE_START;
-    LastStopped = 0U;
 }
 
 static void CoinInput_IRQ(void)

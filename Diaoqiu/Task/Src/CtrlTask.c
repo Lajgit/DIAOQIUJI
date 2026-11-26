@@ -2,6 +2,7 @@
 #include "MesgTask.h"
 #include "FlashTask.h"
 #include "CommTask.h"
+#include "InterruptTask.h"
 #include "tim.h"
 
 Motor_Hoolle Motor_Hoolle1, Motor_Hoolle2;
@@ -29,6 +30,7 @@ void Device_Init(void)
     Device_Switch_Init(&Card.Switch, CardOutput_GPIO_Port, CardOutput_Pin, GPIO_PIN_SET);
     Motor_Hoolle1.Hoolle_num = 0U;
     Motor_Hoolle1.RetryCount = 0U;
+    HoolleOutput_FilterReset();
     Card.Card_num = 0U;
     WheelState = WHEEL_IDLE;
     WheelTest = 0U;
@@ -255,7 +257,8 @@ static void Ctrl_Ball(void)
     if (motor->state == DEVICE_STATE_STOP)
     {
         motor->Stop(motor);
-        motor->state = DEVICE_STATE_IDLE;
+        /* 末颗确认后若又排入新球，继续启动，不能把STOP窗口内的新请求留在空闲。 */
+        motor->state = Motor_Hoolle1.Hoolle_num ? DEVICE_STATE_START : DEVICE_STATE_IDLE;
     }
     if (motor->state == DEVICE_STATE_START)
     {
@@ -270,6 +273,7 @@ static void Ctrl_Ball(void)
             return;
         }
         /* 堵珠先反转300ms，最多重试三次；未出数量一直保留给后台决定。 */
+        HoolleOutput_FilterReset();
         motor->SetSpeed(motor, HoolleMotor_Speed, !HoolleMotor_Dir);
         motor->state = DEVICE_STATE_TIMEOUT;
         Motor_Hoolle1.RetryCount++;
