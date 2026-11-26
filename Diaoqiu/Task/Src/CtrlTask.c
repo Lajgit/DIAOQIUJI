@@ -10,7 +10,7 @@ Motor_Card Card;
 static motor_t WheelMotor;
 static uint8_t DeviceReady;
 static uint8_t OutputsPaused;
-/* 中文注释：普通直流电机先随机选人物，再回零；每人四格，目标取档位中间第2格。 */
+/* 中文注释：先随机选未亮人物再归零；实测零位人物8，当前方向每4格人物号递减并循环。 */
 typedef enum { WHEEL_IDLE, WHEEL_HOME, WHEEL_MOVE, WHEEL_DONE, WHEEL_FAULT } Wheel_State_t;
 static volatile Wheel_State_t WheelState;
 static volatile uint8_t WheelEdges;
@@ -122,9 +122,9 @@ void Ctrl_WheelResetIRQ(void)
         return;
     WheelEdges = 0U;
     WheelLastEdge = HAL_GetTick();
-    if (WheelTest == 1U)
+    if (WheelTest == 1U || WheelTarget == 0U)
     {
-        /* 中文注释：后台归零在RESET下降沿直接制动，不再走游戏人物中心偏移。 */
+        /* 中文注释：后台归零或游戏选中人物8，均在RESET下降沿直接制动。 */
         WheelMotor.Stop(&WheelMotor);
         WheelState = WHEEL_DONE;
     }
@@ -235,7 +235,8 @@ static void Ctrl_Wheel(void)
                     break;
                 }
         }
-        WheelTarget = (uint8_t)((WheelCharacter - 1U) * 4U + 2U);
+        /* 中文注释：人物1~9距零位分别28/24/20/16/12/8/4/0/32个ANGLE下降沿。 */
+        WheelTarget = (uint8_t)(((17U - WheelCharacter) % 9U) * 4U);
         WheelEdges = 0U;
         WheelLastEdge = HAL_GetTick();
         WheelState = WHEEL_HOME;
