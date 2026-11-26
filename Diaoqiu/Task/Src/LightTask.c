@@ -9,6 +9,7 @@ static const uint8_t LightCount[2] = {36U, 49U};
 static volatile uint8_t DmaBusy[2], DmaRetry;
 static uint16_t GridMask;
 static uint8_t LineCount, FullFlash, Dirty;
+static uint8_t IdleWhite = 1U;
 static uint32_t FlashTick;
 
 static uint16_t EncodeByte(uint8_t strip, uint16_t offset, uint8_t data)
@@ -22,12 +23,24 @@ static uint16_t EncodeByte(uint8_t strip, uint16_t offset, uint8_t data)
 void LightTask_Init(void)
 {
     memset(LightPwm, 0, sizeof(LightPwm));
+    IdleWhite = 1U;
     __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, 0U);
     __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_2, 0U);
     HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
     HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
     HAL_Delay(1U);
     Dirty = 1U;
+}
+
+void Light_SetIdle(uint8_t idle)
+{
+    /* 中文注释：待机时LD1~LD85全部白光，仍使用原亮度；只标记刷新，不阻塞发送。 */
+    idle = idle != 0U;
+    if (IdleWhite != idle)
+    {
+        IdleWhite = idle;
+        Dirty = 1U;
+    }
 }
 
 void Light_SetGrid(uint16_t mask, uint8_t lines, uint8_t flash)
@@ -95,7 +108,7 @@ void LightTask(void)
         for (led = 0U; led < LightCount[strip]; led++)
         {
             /* RGB1=LD1~36；RGB2前24颗是六档指示，后25颗是白色背景。 */
-            white = strip && led >= 24U;
+            white = IdleWhite || (strip && led >= 24U);
             red = strip ? (led < 24U && led / 4U < LineCount) : ((GridMask & (1U << (led / 4U))) != 0U);
             r = (red || white) ? value : 0U;
             g = b = white ? value : 0U;

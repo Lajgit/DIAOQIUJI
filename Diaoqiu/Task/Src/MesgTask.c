@@ -21,6 +21,7 @@ static const uint16_t LinePoints[7] = {0U, 20U, 50U, 100U, 180U, 300U, 500U};
 static uint16_t Button1Pending;
 static uint8_t RedeemPending;
 static volatile uint8_t ValveActive;
+static uint8_t IdleReturnPending;
 static uint32_t LastCreditDisplay, LastCreditDisplayTick;
 static uint8_t LastDisplayMode;
 
@@ -158,12 +159,13 @@ void Game_Init(void)
     memset(&Game, 0, sizeof(Game));
     FlashTask_LoadWallet(&Game.CoinCredits, &Game.Score);
     MusicPending = CurrentMusic = 0U;
-    Button1Pending = RedeemPending = ValveActive = 0U;
+    Button1Pending = RedeemPending = ValveActive = IdleReturnPending = 0U;
     LastCreditDisplay = UINT32_MAX;
     LastDisplayMode = 0xFFU;
     LastCreditDisplayTick = HAL_GetTick();
     HAL_GPIO_WritePin(LockOutput_GPIO_Port, LockOutput_Pin, GPIO_PIN_RESET);
     Light_SetGrid(0U, 0U, 0U);
+    Light_SetIdle(1U);
     Game_ClearLowerLights();
     DigitalTube_SetTotals(Game.Score, Setting.PointsPerCard ? Game.Score / Setting.PointsPerCard : 0U);
 }
@@ -197,6 +199,9 @@ static void Game_EndRound(uint8_t success)
         HAL_GPIO_WritePin(LockOutput_GPIO_Port, LockOutput_Pin, GPIO_PIN_SET);
     }
     __set_PRIMASK(primask);
+    /* 失败先保持原清图案效果，10秒未重开再转全白待机；成功动画保持原规则。 */
+    IdleReturnPending = success ? 0U : 1U;
+    Light_SetIdle(0U);
     Light_SetGrid(Game.GridMask, Game.LineCount, Game.FullFlash);
     if (!success)
         Game_ClearLowerLights();
@@ -400,6 +405,8 @@ static void Game_RequestBall(void)
         Game.RoundActive = 1U;
         Game.RoundMode = mode;
         Game.FeePending = mode;
+        IdleReturnPending = 0U;
+        Light_SetIdle(0U);
         Game_QueueMusic(GAME_MUSIC_START);
     }
     if (!pending)
@@ -434,6 +441,12 @@ void Mesg_Task(void)
         Game_ClearLowerLights();
         Comm_ClearGameInput();
         if (Game_CanRun()) Ctrl_ResumeOutputs();
+    }
+    if (IdleReturnPending && !Game.RoundActive && (uint32_t)(now - Game.FailTick) >= 10000U)
+    {
+        /* 中文注释：只恢复上板LD1~LD85白光，不改币分/故障/后台和下板已清空的灯。 */
+        IdleReturnPending = 0U;
+        Light_SetIdle(1U);
     }
     if (Game_Persist() == 0 && Game_CanPlay())
     {
