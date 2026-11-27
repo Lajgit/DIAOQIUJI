@@ -21,6 +21,7 @@ static const uint16_t LinePoints[7] = {0U, 20U, 50U, 100U, 180U, 300U, 500U};
 static uint16_t Button1Pending;
 static uint8_t RedeemPending;
 static volatile uint8_t ValveActive;
+static volatile uint32_t ValveTick;
 static uint8_t IdleReturnPending;
 static uint32_t LastCreditDisplay, LastCreditDisplayTick;
 static uint8_t LastDisplayMode;
@@ -185,19 +186,22 @@ static void Game_EndRound(uint8_t success)
     Game.RoundActive = 0U;
     Button1Pending = RedeemPending = 0U;
     Ctrl_ResetFaults();
+    ValveTick = HAL_GetTick();
     if (success)
     {
         Game.FullFlash = 1U;
-        Game.FullFlashTick = HAL_GetTick();
+        Game.FullFlashTick = ValveTick;
     }
     else
     {
         Game.GridMask = Game.HitMask = 0U;
         Game.LineCount = 0U;
-        Game.FailTick = HAL_GetTick();
-        Game.Failing = ValveActive = 1U;
-        HAL_GPIO_WritePin(LockOutput_GPIO_Port, LockOutput_Pin, GPIO_PIN_SET);
+        Game.FailTick = ValveTick;
+        Game.Failing = 1U;
     }
+    /* 中文注释：失败和满盘成功均驱动PA0一秒；独立阀计时不改变成功动画/失败状态。 */
+    ValveActive = 1U;
+    HAL_GPIO_WritePin(LockOutput_GPIO_Port, LockOutput_Pin, GPIO_PIN_SET);
     __set_PRIMASK(primask);
     /* 失败先保持原清图案效果，10秒未重开再转全白待机；成功动画保持原规则。 */
     IdleReturnPending = success ? 0U : 1U;
@@ -364,7 +368,7 @@ int Game_SaveSettings(void)
 void Game_Timer1ms(void)
 {
     /* 中文注释：PA0一秒释放在既有1ms中断内关断，LCD刷新不会延长释放时间。 */
-    if (ValveActive && (uint32_t)(HAL_GetTick() - Game.FailTick) >= 1000U)
+    if (ValveActive && (uint32_t)(HAL_GetTick() - ValveTick) >= 1000U)
     {
         HAL_GPIO_WritePin(LockOutput_GPIO_Port, LockOutput_Pin, GPIO_PIN_RESET);
         ValveActive = 0U;
