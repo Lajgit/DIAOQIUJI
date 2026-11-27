@@ -10,6 +10,7 @@ static uint16_t LightPwm[2][PWM_SIZE];
 static volatile uint8_t DmaBusy[2], DmaRetry;
 static uint8_t Active[9], Dirty = 1U, Brightness = 5U;
 static uint8_t FlashPhase[9];
+static uint8_t SuccessFlash; /* 0正常人物灯，1全部红亮，2全部熄灭。 */
 static uint32_t HitTick[9];
 
 void Light_Init(void)
@@ -17,6 +18,7 @@ void Light_Init(void)
     memset(LightPwm, 0, sizeof(LightPwm));
     memset(Active, 0, sizeof(Active));
     memset(FlashPhase, 0, sizeof(FlashPhase));
+    SuccessFlash = 0U;
     __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, 0U);
     __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, 0U);
     HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
@@ -37,9 +39,28 @@ void BallLight_Hit(uint8_t character)
 
 void BallLight_SetMode(uint8_t character, uint8_t color, uint8_t mode)
 {
-    /* 中文注释：沿用0x04/0x02、人物1~9/红色0；模式0首次闪3次后常亮，模式1关闭。 */
+    /* 中文注释：沿用0x04/0x02；人物0广播：模式1清除、2全部红亮、3全部灭。
+     * 每个亮灭相位由上板下发，覆盖原人物三闪/常亮，不使用独立闪烁时钟。 */
+    if (character == 0U && color == 0U && mode >= 1U && mode <= 3U)
+    {
+        if (mode == 1U)
+        {
+            memset(Active, 0, sizeof(Active));
+            memset(FlashPhase, 0, sizeof(FlashPhase));
+        }
+        SuccessFlash = (uint8_t)(mode - 1U);
+        Dirty = 1U;
+        return;
+    }
+    /* 人物1~9仍为模式0首次三闪后常亮，模式1关闭；普通清盘也解除成功覆盖。 */
     if (character < 1U || character > 9U || color != 0U || mode > 1U)
         return;
+    if (mode == 1U && SuccessFlash)
+    {
+        SuccessFlash = 0U;
+        memset(Active, 0, sizeof(Active));
+        memset(FlashPhase, 0, sizeof(FlashPhase));
+    }
     if (mode == 0U)
         BallLight_Hit(character);
     else
@@ -127,7 +148,7 @@ void Light_Task(void)
         for (i = 0U; i < BALL_LED_COUNT; i++)
         {
             offset = EncodeByte(strip, offset, 0U);
-            offset = EncodeByte(strip, offset, Active[i / 2U] && !(FlashPhase[i / 2U] & 1U) ?
+            offset = EncodeByte(strip, offset, (SuccessFlash ? SuccessFlash == 1U : (Active[i / 2U] && !(FlashPhase[i / 2U] & 1U))) ?
                 (uint8_t)(255U * Brightness / 10U) : 0U);
             offset = EncodeByte(strip, offset, 0U);
         }

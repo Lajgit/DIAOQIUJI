@@ -1,7 +1,9 @@
 #include "LightTask.h"
 #include "FlashTask.h"
+#include "CommTask.h"
 #include "tim.h"
 #include "string.h"
+#define SUCCESS_FLASH_INTERVAL_MS 300U
 #define RESET_SLOTS 256U
 #define PWM_SIZE (1U + 49U * 24U + RESET_SLOTS)
 static uint16_t LightPwm[2][PWM_SIZE];
@@ -11,6 +13,8 @@ static uint16_t GridMask;
 static uint8_t LineCount, FullFlash, Dirty;
 static uint8_t IdleWhite = 1U;
 static uint32_t FlashTick;
+static uint8_t FlashPhase;
+extern Tx_HandleTypeDef Tx1;
 
 static uint16_t EncodeByte(uint8_t strip, uint16_t offset, uint8_t data)
 {
@@ -48,7 +52,13 @@ void Light_SetGrid(uint16_t mask, uint8_t lines, uint8_t flash)
     if (GridMask != mask || LineCount != lines || FullFlash != flash)
         Dirty = 1U;
     if (flash && !FullFlash)
+    {
         FlashTick = HAL_GetTick();
+        FlashPhase = 0xFFU;
+    }
+    /* 中文注释：成功结束广播清灯，避免下板保留最后一帧；仍沿用14字节0x04/0x02。 */
+    if (!flash && FullFlash)
+        Comm_SendMesg_FillData(&Tx1, Board_to_Ball, BALL_CMD_RGB_MODE, 0U, 1U);
     GridMask = mask;
     LineCount = lines;
     FullFlash = flash;
@@ -85,11 +95,9 @@ void HAL_TIM_ErrorCallback(TIM_HandleTypeDef *htim)
 
 void LightTask(void)
 {
-    static uint32_t LastRefresh;
     uint32_t now = HAL_GetTick();
-    static const uint8_t Palette[6][3] = {{255U,0U,0U},{255U,100U,0U},{0U,255U,0U},
-        {0U,180U,255U},{40U,0U,255U},{255U,0U,180U}};
     uint8_t strip, led, red, white, r, g, b;
+    uint8_t phase = (uint8_t)(((uint32_t)(now - FlashTick) / SUCCESS_FLASH_INTERVAL_MS) & 1U);
     uint8_t value = (uint8_t)(255U * Setting.Board_Lightness / 10U);
     if (DmaBusy[0] || DmaBusy[1])
         return;
@@ -98,10 +106,16 @@ void LightTask(void)
         DmaRetry = 0U;
         Dirty = 1U;
     }
-    if (!Dirty && (!FullFlash || (uint32_t)(now - LastRefresh) < 20U))
+    if (FullFlash && FlashPhase != phase)
+    {
+        /* 中文注释：所有RGB同相300ms红亮/300ms全灭；下板跟随每一相位，不独立计时。 */
+        FlashPhase = phase;
+        Dirty = 1U;
+        Comm_SendMesg_FillData(&Tx1, Board_to_Ball, BALL_CMD_RGB_MODE, 0U, phase ? 3U : 2U);
+    }
+    if (!Dirty)
         return;
     Dirty = 0U;
-    LastRefresh = now;
     for (strip = 0U; strip < 2U; strip++)
     {
         uint16_t offset = 1U;
@@ -114,21 +128,8 @@ void LightTask(void)
             g = b = white ? value : 0U;
             if (FullFlash)
             {
-                uint32_t elapsed = now - FlashTick;
-                uint16_t phase = (uint16_t)(elapsed % 800U);
-                uint16_t level = phase <= 400U ? phase : 800U - phase;
-                uint8_t stage = elapsed / 800U < 9U ? (uint8_t)(elapsed / 800U) : 8U;
-                uint8_t color = (uint8_t)((stage + (strip ? 0U : led / 4U)) % 6U);
-                /* 中文注释：1~9图案每800ms依次加入，已加入图案和其余灯随彩虹渐亮渐灭。
-                 * 9档共7.2秒，期间游戏锁定；完成后由游戏任务恢复背景白灯。 */
-                if (!strip && led / 4U > stage)
-                    r = g = b = 0U;
-                else
-                {
-                    r = (uint8_t)((uint32_t)Palette[color][0] * value * level / (255U * 400U));
-                    g = (uint8_t)((uint32_t)Palette[color][1] * value * level / (255U * 400U));
-                    b = (uint8_t)((uint32_t)Palette[color][2] * value * level / (255U * 400U));
-                }
+                r = phase ? 0U : value;
+                g = b = 0U;
             }
             offset = EncodeByte(strip, offset, g);
             offset = EncodeByte(strip, offset, r);
