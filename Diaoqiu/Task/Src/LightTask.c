@@ -58,7 +58,11 @@ void Light_SetGrid(uint16_t mask, uint8_t lines, uint8_t flash)
     }
     /* 中文注释：成功结束广播清灯，避免下板保留最后一帧；仍沿用14字节0x04/0x02。 */
     if (!flash && FullFlash)
+    {
+        /* 中文注释：成功结束后LED1/PB3、LED2/PB4恢复原高电平常开。 */
+        HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin | LED2_Pin, GPIO_PIN_SET);
         Comm_SendMesg_FillData(&Tx1, Board_to_Ball, BALL_CMD_RGB_MODE, 0U, 1U);
+    }
     GridMask = mask;
     LineCount = lines;
     FullFlash = flash;
@@ -111,6 +115,8 @@ void LightTask(void)
         /* 中文注释：所有RGB同相300ms红亮/300ms全灭；下板跟随每一相位，不独立计时。 */
         FlashPhase = phase;
         Dirty = 1U;
+        /* 中文注释：两组高有效LED负载跟随RGB同相闪烁，不另设时钟。 */
+        HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin | LED2_Pin, phase ? GPIO_PIN_RESET : GPIO_PIN_SET);
         Comm_SendMesg_FillData(&Tx1, Board_to_Ball, BALL_CMD_RGB_MODE, 0U, phase ? 3U : 2U);
     }
     if (!Dirty)
